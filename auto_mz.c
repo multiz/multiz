@@ -6,6 +6,16 @@
 
 #define VERSION 3
 
+// macro to convince gnu c compiler not to complain about unusued function
+// arguments
+
+#ifdef __GNUC__
+#define arg_dont_complain(arg) arg __attribute__ ((unused))
+#else
+#define arg_dont_complain(arg) arg
+#endif // __GNUC__
+
+
 #define MC "multic"
 #define MZ "multiz"
 #define MP "maf_project"
@@ -39,13 +49,10 @@ int contain_species(NameListPtr nlist, char* species) {
 }
 
 //int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char** bz_file) {
-int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char** bz_file) {
+int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), arg_dont_complain(char** bz_file)) {
     char _right_maf[200], _left_maf[200], _middle_maf[200];
     NameListPtr n1, n2;
     int left, right;
-
-    nbz = nbz;
-    bz_file = bz_file;
 
     if ( x->names == NULL || y->names == NULL )
         fatal("mz_merge:; emtpy sub-tree");
