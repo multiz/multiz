@@ -10,8 +10,6 @@
 #include "multi_util.h"
 //#include "myDebug.h"
 
-static const char rcsid[] = "$Id: multi_util.c 142 2008-11-12 18:55:23Z rico $";
-
 int radius=30;
 int MIN_OUTPUT_WID=1;
 int LRG_BREAK_WID=20;

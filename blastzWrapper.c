@@ -11,8 +11,6 @@
 #include "multi_util.h"
 #include "seq.h"
 
-static const char rcsid[] = "$Id: blastzWrapper.c 142 2008-11-12 18:55:23Z rico $";
-
 #define BZ "blastz"
 #define VERSION 10
 
@@ -42,8 +40,8 @@ void replace_reverse_bz(FILE* fpr, FILE* fpw, char* replace_str, int contig, int
             fprintf(fpw, "%s", buf);
             fgets(buf1, 1000, fpr);
             fgets(buf2, 1000, fpr);
-            fprintf(fpw, buf2);
-            fprintf(fpw, buf1);
+            fprintf(fpw, "%s", buf2);
+            fprintf(fpw, "%s", buf1);
         } else if ( strncmp(buf, "s {", 3) == 0) {
             fprintf(fpw, "%s", buf);
             fgets(buf1, 1000, fpr);
@@ -51,11 +49,11 @@ void replace_reverse_bz(FILE* fpr, FILE* fpw, char* replace_str, int contig, int
             sprintf(buf1, "  \"%s\" %d %d %d %d\n", replace_str, beg, end, dir, contig);
             fgets(buf2, 1000, fpr);
             if (rev==1) {
-                fprintf(fpw, buf2);
-                fprintf(fpw, buf1);
+                fprintf(fpw, "%s", buf2);
+                fprintf(fpw, "%s", buf1);
             } else {
-                fprintf(fpw, buf1);
-                fprintf(fpw, buf2);
+                fprintf(fpw, "%s", buf1);
+                fprintf(fpw, "%s", buf2);
             }
         } else if ( rev==1 && strncmp(buf, "a {", 3)==0) {
             fprintf(fpw, "%s", buf);

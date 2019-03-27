@@ -13,8 +13,6 @@
 #include "mz_scores.h"
 #include "align_util.h"
 
-static const char rcsid[] = "$Id: mz_preyama.c 142 2008-11-12 18:55:23Z rico $";
-
 // smooth out the left and right bounds for the dynamic-programming region
 void smooth(int *LB, int *RB, int M, int N, int radius) {
     int i, j, radi = MIN(M, radius);

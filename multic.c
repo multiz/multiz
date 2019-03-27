@@ -27,8 +27,6 @@
 #include "mz_preyama.h"
 #include "mz_yama.h"
 
-static const char rcsid[] = "$Id: multic.c 142 2008-11-12 18:55:23Z rico $";
-
 extern int radius;
 extern int MIN_OUTPUT_WID;
 extern int row2;

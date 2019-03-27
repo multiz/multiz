@@ -3,9 +3,6 @@
 #include "util.h"
 #include "mz_scores.h"
 
-static const char rcsid[] = "$Id: mz_scores.c 142 2008-11-12 18:55:23Z rico $";
-
-
 int **ss70, **ss85, *gop70, *gop85;
 
 static const uchar nchars[] = "ACGT";

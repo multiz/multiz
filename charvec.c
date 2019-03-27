@@ -1,8 +1,5 @@
 #include "charvec.h"
 
-static const char rcsid[]=
-    "$Id: charvec.c 142 2008-11-12 18:55:23Z rico $";
-
 /* This implementation uses a "growable array" abstraction */
 
 int charvec_fini(charvec_t *t) {

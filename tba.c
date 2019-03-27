@@ -14,8 +14,6 @@
 #include "mz_scores.h"
 #include "speciesTree.h"
 
-static const char rcsid[] = "$Id: tba.c 142 2008-11-12 18:55:23Z rico $";
-
 #define MZ "multiz"
 #define MC "multic"
 #define MP "maf_project"

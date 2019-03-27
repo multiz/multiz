@@ -10,9 +10,6 @@
 // XXX -- BUG: after a seek, we are not synchronized.
 // skip to end?
 
-static const char rcsid[] =
-    "$Id: nib.c 142 2008-11-12 18:55:23Z rico $";
-
 //
 // First 4 bytes of the nib file are the signature: 0x6BE93D3A.
 // This can be in either byte order.  The next 4 bytes are the size

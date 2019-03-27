@@ -3,9 +3,6 @@
 #include "util.h"
 #include "multi_util.h"
 
-static const char rcsid[] = "$Id: speciesTree.c 142 2008-11-12 18:55:23Z rico $";
-
-
 extern int force;
 extern int execute;
 extern int verbose;

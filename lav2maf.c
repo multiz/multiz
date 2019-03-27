@@ -9,9 +9,6 @@
 #include "multi_util.h"
 //#include "contig.h"
 
-static const char rcsid[] = "$Id: lav2maf.c 146 2009-01-21 22:02:30Z rico $";
-
-
 #define MAX_ALIGN_LEN 10000000
 #define MAX_CONTIG    1000000
 

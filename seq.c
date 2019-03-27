@@ -1,8 +1,5 @@
 /* seq.c -- procedures for reading a file of DNA sequences */
 
-static const char rcsid[] =
-    "$Id: seq.c 142 2008-11-12 18:55:23Z rico $";
-
 #include "util.h"
 #include "seq.h"
 #include "nib.h"
@@ -84,8 +81,6 @@ static const unsigned char dna_complement[] =
 /* @ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~. */
 /* ................................................................ */
 /* ................................................................ */
-
-static const unsigned char fasta_decoding[] = "ACGT";
 
 static void Fatalfr(const char *fmt, ...) {
     va_list ap;

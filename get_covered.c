@@ -7,9 +7,6 @@
 #include "maf.h"
 #include "mz_scores.h"
 
-static const char rcsid[] = "$Id: get_covered.c 142 2008-11-12 18:55:23Z rico $";
-
-
 int get_covered(struct mafAli** wk_list1, struct mafAli** wk_list2) {
     struct mafAli *a1, *a2;
     int beg1, beg2, beg, end1, end2, end;

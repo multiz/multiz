@@ -49,8 +49,6 @@
 #include "mz_preyama.h"
 #include "mz_scores.h"
 
-static const char rcsid[] = "$Id: multiz.c 148 2009-01-21 22:30:05Z rico $";
-
 extern int row2;
 extern int radius;
 extern int MIN_OUTPUT_WID;

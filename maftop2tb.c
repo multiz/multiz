@@ -13,9 +13,6 @@
 #include "seq.h"
 #include "maftop2tb.h"
 
-static const char rcsid[] = "$Id: maftop2tb.c 142 2008-11-12 18:55:23Z rico $";
-
-
 struct mafAli* getMafBetween(struct mafFile* mf, char* seqfile, FILE* fpw) {
     int i, j, start, end, size, nali, flag1, flag2;
     SEQ * sf;

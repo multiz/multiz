@@ -31,9 +31,6 @@
 #define DISCARD_SIZE 20	// can discard rows of blocks at most this wide
 #define MUST_FUSE 10	// must fuse blocks with at most this many columns
 
-static const char rcsid[] = "$Id: maf_project.c 142 2008-11-12 18:55:23Z rico $";
-
-
 #define CAUTIOUS	// do extra work to check for internal errors
 
 static const char USAGE[] = "args: file.maf reference [from to]\

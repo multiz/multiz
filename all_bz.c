@@ -43,8 +43,6 @@ human : zfish
 #define TOAST2_SUFFIX "toast2.maf"
 #define NON_NAME " ()"
 
-static const char rcsid[] = "$Id: all_bz.c 142 2008-11-12 18:55:23Z rico $";
-
 #define BZ_CMD "blastzWrapper %s %s Y=9000 H=0 %s | lav2maf /dev/stdin %s %s | maf_sort /dev/stdin %s > %s.%s.orig.maf"
 #define BZ_T2_CMD "blastzWrapper %s %s Y=9000 H=0 T=2 %s | lav2maf /dev/stdin %s %s | maf_sort /dev/stdin %s > %s.%s.orig.maf"
 #define SIN_CMD_PRE "single_cov2 %s.%s.orig.maf "

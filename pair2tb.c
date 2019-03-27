@@ -13,9 +13,6 @@
 #include "maftop2tb.h"
 #include "seq.h"
 
-static const char rcsid[] = "$Id: pair2tb.c 142 2008-11-12 18:55:23Z rico $";
-
-
 int main(int argc, char **argv) {
     struct mafFile *mf;
     struct mafAli *a;

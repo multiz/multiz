@@ -4,8 +4,6 @@
 #include "speciesTree.h"
 #include "mz_scores.h"
 
-static const char rcsid[] = "$Id: auto_mz.c,v 1.5 2006-02-06 20:58:53 mhou Exp $";
-
 #define VERSION 3
 
 #define MC "multic"
@@ -45,7 +43,6 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char** bz_file) {
     char _right_maf[200], _left_maf[200], _middle_maf[200];
     NameListPtr n1, n2;
     int left, right;
-
 
     nbz = nbz;
     bz_file = bz_file;

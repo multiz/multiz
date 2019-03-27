@@ -6,9 +6,6 @@
 #include "multi_util.h"
 #include "mz_scores.h"
 
-static const char rcsid[] = "$Id: maf2lav.c 142 2008-11-12 18:55:23Z rico $";
-
-
 #define END_RUN(x) (x == '-' || x == '\0')
 #define VERSION 11
 

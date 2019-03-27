@@ -9,9 +9,6 @@
 #include "multi_util.h"
 #include "seq.h"
 
-static const char rcsid[] = "$Id: single_cov2.c 142 2008-11-12 18:55:23Z rico $";
-
-
 #define IGNORE 6	/* don't make alignments smaller than this */
 #define STOP_CRITERIA 0.99
 #define VERSION 11

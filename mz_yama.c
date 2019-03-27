@@ -21,9 +21,6 @@
 #include "mz_scores.h"
 #include "mz_yama.h"
 
-static const char rcsid[] = "$Id: mz_yama.c 142 2008-11-12 18:55:23Z rico $";
-
-
 #define FLAG_C (0)
 #define FLAG_I (1<<0)
 #define FLAG_D (1<<1)
