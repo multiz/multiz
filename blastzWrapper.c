@@ -11,7 +11,7 @@
 #include "multi_util.h"
 #include "seq.h"
 
-#define BZ "blastz"
+#define BZ "lastz"    # we use lastz instead of blastz
 #define VERSION 10
 
 // replace the first argument with the new first_fn
