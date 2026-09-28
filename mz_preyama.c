@@ -149,7 +149,7 @@ int* mapping(uchar** A, int a_row1, int a_row2, int a_col1, int a_col2, uchar** 
 
 // determine upper and lower bounds for yama procedure
 // v can only be 0, or 1
-struct mafAli* pre_yama(struct mafAli *a1, struct mafAli* a2, int beg, int end,int radius, int v, FILE* fpw2) {
+struct mafAli* pre_yama(struct mafAli *a1, struct mafAli* a2, int beg, int end,int radius, int v, FILE* fpw1, FILE* fpw2) {
     int cbeg1, cend1, cbeg2, cend2, M, N, K, L, i, j, M_new, M3,N3;
     int *LB, *RB, *LB2, *RB2;
     uchar **A, **B, **AL_new, **AL_new2, **A2, **B2;
@@ -184,6 +184,8 @@ struct mafAli* pre_yama(struct mafAli *a1, struct mafAli* a2, int beg, int end,i
         free(B[1]);
         free(B+1);
         free(map2);
+        if (fpw1 != NULL)
+            print_part_ali_col(a1, cbeg1, cend1, fpw1);
         return NULL;
     }
 
@@ -223,6 +225,8 @@ struct mafAli* pre_yama(struct mafAli *a1, struct mafAli* a2, int beg, int end,i
             free(A[1]);
             free(A+1);
             free(map1);
+            if (fpw2 != NULL)
+                print_part_ali_col(a2, cbeg2, cend2, fpw2);
             return NULL;
         }
     } else {

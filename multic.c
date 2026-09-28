@@ -69,7 +69,7 @@ void overlap_wrapper(struct aliNode* A, struct aliNode* B, int v) {
 
     if ( over_beg > over_end )
         fatalf("there is no overlapping! %d %d\n", over_beg, over_end);
-    nali = pre_yama(A->ali, B->ali, over_beg, over_end, radius, v, NULL);
+    nali = pre_yama(A->ali, B->ali, over_beg, over_end, radius, v, NULL, NULL);
     if ( nali==NULL)
         return;
 
