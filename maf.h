@@ -21,6 +21,7 @@ struct mafFile
     int line_nbr;
     int verbose;
     FILE *fp; 			// Open file if any. NULL except while parsing.
+    char *pending;		// an 'a' line read while finishing the previous block
 };
 
 void mafFileFree(struct mafFile **pObj);
