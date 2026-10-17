@@ -118,7 +118,7 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
 }
 
 int main(int argc, char **argv) {
-    char name_list[10000], USAGE[10000], cmd[500], big_buf[BIG_BUF_SIZE], *bz_file[10000], buf[500], mzPar[500], *mzOpt, *p;
+    char name_list[10000], USAGE[10000], cmd[500], *big_buf, *bz_file[10000], buf[500], mzPar[500], *mzOpt, *p;
     int i, top = -1, id = 0, nbz, X, Cvalue=-1;
     TreeNode tree[1000];
     pid_t pid;
@@ -141,12 +141,18 @@ int main(int argc, char **argv) {
 
 
 
-    sprintf(big_buf, "# %s", cmd);
-    for (i = 1; i < argc; ++i) {
-        if (strlen(big_buf) + strlen(argv[1]) + 2 >= BIG_BUF_SIZE)
-            fatal("overflow = big_buf");
-        strcat(big_buf, " ");
-        strcat(big_buf, argv[i]);
+    // the header line echoing the command: sized to fit (the old fixed buffer's
+    // check measured argv[1] instead of the argument being appended)
+    {
+        size_t len = strlen(cmd) + 3;
+        for (i = 1; i < argc; ++i)
+            len += strlen(argv[i]) + 1;
+        big_buf = ckalloc(len);
+        sprintf(big_buf, "# %s", cmd);
+        for (i = 1; i < argc; ++i) {
+            strcat(big_buf, " ");
+            strcat(big_buf, argv[i]);
+        }
     }
 
     strcpy(project_cmd, "%s %s %s %s > %s");
@@ -241,11 +247,15 @@ int main(int argc, char **argv) {
         for (nbz = 0; fgets(buf2, 500, fp) != NULL; ++nbz) {
             if ((s = strchr(buf2, '\n')) != NULL)
                 *s = '\0';
+            if (nbz >= 10000)
+                fatal("too many input files (at most 10000)");
             bz_file[nbz] = copy_string(buf2);
         }
         fclose(fp);
     } else {
         nbz = argc - 3;
+        if (nbz > 10000)
+            fatal("too many input files (at most 10000)");
         for (i = 0; i < nbz; ++i) {
             bz_file[i] = argv[i+2];
         }
