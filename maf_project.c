@@ -572,6 +572,8 @@ static struct mafAli *ps_read(struct mafFile *mf, int blk) {
     struct mafAli *a;
     if (fseek(mf->fp, ps_off[blk], SEEK_SET) != 0)
         fatalf("cannot seek in %s", mf->fileName);
+    free(mf->pending);          // a line kept by the previous read belongs to wherever that
+    mf->pending = NULL;         // read stopped, not to this block
     if ((a = mafNext(mf)) == NULL)
         fatalf("cannot re-read a block of %s", mf->fileName);
     return a;
@@ -589,6 +591,12 @@ static void project_stream(char *fileName, char *target, FILE *fp, int beg, int 
     int nb = 0, capb = 0, nchr = 0, capc = 0, *chr = NULL, inblock = 0, matched = 0;
     int start, size, srcSize, i, k, n, nkeep, *list, *keep, *other;
 
+    if (mf->pending != NULL) {          // no header: index from the top, as in maf_stream.c
+        free(mf->pending);
+        mf->pending = NULL;
+        if (fseek(in, 0L, SEEK_SET) != 0)
+            fatalf("cannot seek in %s", fileName);
+    }
     for (here = ftell(in); (len = getline(&line, &cap, in)) != -1; here += len) {
         if (line[0] == '#') {
             if (strstr(line, "eof") == NULL)

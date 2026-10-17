@@ -33,6 +33,12 @@ struct mafIndex *mafIndexBuild(char *fileName, int verbose) {
 
     ix->mf = mafOpen(fileName, 0);      // checks the header line; positioned after it
     fp = ix->mf->fp;
+    if (ix->mf->pending != NULL) {      // no header: mafOpen read up to the first 'a' line,
+        free(ix->mf->pending);          // so index from the top (the loop below handles
+        ix->mf->pending = NULL;         // blank lines and comments as mafReadAll does)
+        if (fseek(fp, 0L, SEEK_SET) != 0)
+            fatalf("cannot seek in %s", fileName);
+    }
     ix->off = NULL;
     ix->chr = NULL;
     ix->nblocks = ix->nchr = 0;
@@ -136,6 +142,8 @@ struct mafAli *mafIndexRead(struct mafIndex *ix, int blk) {
 
     if (fseek(ix->mf->fp, ix->off[blk], SEEK_SET) != 0)
         fatalf("cannot seek in %s", ix->mf->fileName);
+    free(ix->mf->pending);      // a line kept by the previous read belongs to wherever that
+    ix->mf->pending = NULL;     // read stopped, not to this block
     a = mafNext(ix->mf);
     if (a == NULL)
         fatalf("cannot re-read block %d of %s", blk, ix->mf->fileName);
