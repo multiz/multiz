@@ -11,7 +11,7 @@
 
 #define IGNORE 6	/* don't make alignments smaller than this */
 #define STOP_CRITERIA 0.99
-#define VERSION 11
+#define VERSION 12
 
 struct mafAli *mafOverlap(struct mafAli *a, FILE *fp) {
     struct mafAli **A, *b, *alast;

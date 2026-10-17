@@ -26,7 +26,7 @@
 
 // compile with -DSTATS to get statistics about fusings of narrow blocks
 
-#define VERSION 12
+#define VERSION 13
 #define FUSE_SIZE 30	// try to fuse blocks with at most this many columns
 #define DISCARD_SIZE 20	// can discard rows of blocks at most this wide
 #define MUST_FUSE 10	// must fuse blocks with at most this many columns

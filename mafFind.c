@@ -12,7 +12,7 @@
 *	mafFind file.maf beg end mm3 slice
 */
 
-#define VERSION 1
+#define VERSION 2
 
 #include "util.h"
 #include "maf.h"

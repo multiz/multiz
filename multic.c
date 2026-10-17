@@ -32,7 +32,7 @@ extern int MIN_OUTPUT_WID;
 extern int row2;
 extern int CONNECTION_THRESHOLD;
 
-#define VERSION 12.1
+#define VERSION 12.2
 //#define SHORTEST_BLOCKSIZE 30
 
 int ALIGN_CATE = 0;
