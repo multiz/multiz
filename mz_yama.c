@@ -50,7 +50,8 @@ static void new_col(uchar *from1, int K, uchar *from2, int L, uchar *to_col) {
 void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
           uchar ***OAL, int *OM) {
     int C, D, I, i, j, k, m, m_new, n, row, col, s, t, u, v, x, y, z,
-    diag_c, diag_d, diag_i, tback_size, nedit;
+    diag_c, diag_d, diag_i, nedit;
+    size_t tback_size;    // sum of band widths; can exceed INT_MAX for long insertions
     uchar **tback_row, *tback, *tbp, st, flag_d, flag_i, flag_c, node,
     *dashes, *script, **al_new;
     dp_node *dp;
@@ -63,7 +64,7 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
         if (j < MIN(N,10)) {
             fatalf("RB[%d] - LB[%d] < %d, %d %d %d", row, row, MIN(N,10), RB[row], LB[row], N);
         }
-        tback_size += (j+1);
+        tback_size += (size_t)(j+1);
         if (row > 0 && LB[row] < LB[row-1])
             fatal("LB not monotonic");
         if (row > 0 && RB[row] < RB[row-1])
@@ -292,7 +293,7 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
 
     *OM = m_new = nedit;
     al_new = (uchar **)ckalloc(m_new*sizeof(uchar *)) - 1;
-    al_new[1] = (uchar *)ckalloc(m_new*(K+L)*sizeof(uchar));
+    al_new[1] = (uchar *)ckalloc((size_t)m_new*(K+L)*sizeof(uchar));
     for (i = 2; i <= m_new; ++i)
         al_new[i] = al_new[i-1] + (K+L);
 
