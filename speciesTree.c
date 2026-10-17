@@ -14,14 +14,20 @@ extern char* OPERAT;
 
 // do_cmd -- print and possible execute a command
 void do_cmd(const char *fmt, ...) {
-    char buf[BIG_BUF_SIZE];
+    char *buf;
     va_list ap;
+    int n;
 
-    // I restructured this to support the x86_64 architecture
-    // without using va_copy from C99. -rico
-
+    // size the command first: a fixed buffer overflowed silently on long
+    // command lines (many input files, or the echoed header of a long run)
     va_start(ap, fmt);
-    (void)vsprintf(buf, fmt, ap);
+    n = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+    if (n < 0)
+        fatal("do_cmd: cannot format command");
+    buf = ckalloc((size_t)n + 1);
+    va_start(ap, fmt);
+    (void)vsnprintf(buf, (size_t)n + 1, fmt, ap);
     va_end(ap);
 
     if (verbose) {
@@ -32,6 +38,7 @@ void do_cmd(const char *fmt, ...) {
         if (system(buf) != 0)
             if (force == 0)
                 fatalf("command '%s' failed", buf);
+    free(buf);
 }
 
 int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, int* id, char* buf, int (*operation)(TreeNodePtr, TreeNodePtr, int, int, char **)) {
