@@ -448,7 +448,7 @@ struct mafAli* pre_yama2(struct mafAli* a1, struct mafAli* a2, struct mafAli* a3
 
     // prepare first alignment for yama
     A = (uchar **)ckalloc(M*sizeof(uchar *)) - 1;
-    A[1] = ckalloc(K*M*sizeof(uchar));
+    A[1] = ckalloc((size_t)K*M*sizeof(uchar));
     for (i = 2; i <= M; ++i)
         A[i] = A[i-1] + K;
     for (i = 1; i <= M; ++i)
@@ -457,7 +457,7 @@ struct mafAli* pre_yama2(struct mafAli* a1, struct mafAli* a2, struct mafAli* a3
 
     // prepare second alignment for yama
     B = (uchar **)ckalloc(N*sizeof(uchar *)) - 1;
-    B[1] = ckalloc(L*N*sizeof(uchar));
+    B[1] = ckalloc((size_t)L*N*sizeof(uchar));
     for (i = 2; i <= N; ++i)
         B[i] = B[i-1] + L;
     for (i = 1; i <= N; ++i)
