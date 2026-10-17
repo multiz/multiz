@@ -30,6 +30,7 @@ struct mafFile *mafOpen(char *fileName, int verbose) {
     mf->alignments = NULL;
     mf->fileName = copy_string(fileName);
     mf->line_nbr = 0;
+    mf->pending = NULL;
     mf->verbose = verbose;
     return mf;
 }
@@ -139,9 +140,17 @@ struct mafAli *mafNext(struct mafFile *mf) {
     static unsigned long nb = 0;
     int i, len;
 
-    while ((len=get_maf_line(&line, &nb, fp, mf)) != -1)
-        if ( line[0] != '#' && line[0] != '\n' && line[0] != ' ')
-            break;
+    if (mf->pending != NULL) {     // the previous block ended at this block's 'a' line
+        if (need(strlen(mf->pending) + 1, &line, &nb))
+            fatal("out of memory reading maf");
+        strcpy(line, mf->pending);
+        free(mf->pending);
+        mf->pending = NULL;
+        len = strlen(line);
+    } else
+        while ((len=get_maf_line(&line, &nb, fp, mf)) != -1)
+            if ( line[0] != '#' && line[0] != '\n' && line[0] != ' ')
+                break;
     if (len == -1) {
         fclose(fp);
         mf->fp = NULL;
@@ -163,6 +172,10 @@ struct mafAli *mafNext(struct mafFile *mf) {
     a->next = NULL;
     while ((len = get_maf_line(&line, &nb, fp, mf)) != -1 &&
             line[0] != '\n' && line[0] != ' ' && line[0] != '#') {
+        if (line[0] == 'a') {      // next block began without a blank line: keep it for the next call
+            mf->pending = copy_string(line);
+            break;
+        }
         c = ckalloc(sizeof(struct mafComp));
 
         c->text = ckalloc(len*sizeof(char));
@@ -345,6 +358,7 @@ void mafFileFree(struct mafFile **pmf) {
     if (mf->scoring != NULL)
         free(mf->scoring);
     free(mf->fileName);
+    free(mf->pending);
     for (a = mf->alignments; a != NULL; a = next) {
         next = a->next;
         mafAliFree(&a);
