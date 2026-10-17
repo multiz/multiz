@@ -25,13 +25,18 @@
 #define FLAG_I (1<<0)
 #define FLAG_D (1<<1)
 #define SELECT_CID (FLAG_I | FLAG_D | FLAG_C)
+/* Path scores are 64-bit: a column scores the sum over all K*L row pairs, so
+*  a long block of many rows passes INT_MAX (about 113,000 columns for 200
+*  rows of identical sequence), which wrapped and silently misaligned the
+*  rest of the block or sent the traceback off the grid.
+*/
+typedef long long score_t;
 // MININT is a hugely negative number away from the underflow threshold
-#define MININT INT_MIN/2
+#define MININT (LLONG_MIN/4)
 
 /* Dynamic Programming structure. */
 typedef struct DP {
-    int D, C, I;
-    int unused;       /* padding for efficiency with linux/GCC */
+    score_t D, C, I;
 }
 dp_node;
 
@@ -49,8 +54,8 @@ static void new_col(uchar *from1, int K, uchar *from2, int L, uchar *to_col) {
 // Entry point: (documented in mz_yama.h)
 void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
           uchar ***OAL, int *OM) {
-    int C, D, I, i, j, k, m, m_new, n, row, col, s, t, u, v, x, y, z,
-    diag_c, diag_d, diag_i, nedit;
+    int i, j, k, m, m_new, n, row, col, s, t, u, v, nedit;
+    score_t C, D, I, x, y, z, diag_c, diag_d, diag_i;
     size_t tback_size;    // sum of band widths; can exceed INT_MAX for long insertions
     uchar **tback_row, *tback, *tbp, st, flag_d, flag_i, flag_c, node,
     *dashes, *script, **al_new;
