@@ -3,6 +3,7 @@
 #include "util.h"
 #include "mz_scores.h"
 
+int **ss, *gop, gap_open, gap_extend;
 int **ss70, **ss85, *gop70, *gop85;
 
 static const uchar nchars[] = "ACGT";
