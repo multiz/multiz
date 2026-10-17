@@ -117,12 +117,23 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
     return 0;
 }
 
+static char *default_tmp_dir(void) {
+    // $TMPDIR if set, otherwise /tmp: /tmp is often a small partition
+    char *t = getenv("TMPDIR");
+    return (t != NULL && *t != '\0') ? t : "/tmp";
+}
+
+static void check_tmp_dir(char *dir) {
+    if (strlen(dir) > NAMESIZE - 40)
+        fatalf("temporary directory path is too long (at most %d characters): %s", NAMESIZE - 40, dir);
+}
+
 int main(int argc, char **argv) {
     char name_list[10000], USAGE[10000], cmd[500], *big_buf, *bz_file[10000], buf[500], mzPar[500], *mzOpt, *p;
     int i, top = -1, id = 0, nbz, X, Cvalue=-1;
     TreeNode tree[1000];
     pid_t pid;
-    char *tmpDir = "/tmp";        /* default for T= */
+    char *tmpDir = default_tmp_dir();     /* default for T= */
 
     sprintf(cmd, "roast.v%d", VERSION);
     argv0 = cmd;
@@ -131,7 +142,7 @@ int main(int argc, char **argv) {
     strcat(USAGE, "\tR(30) dynamic programming radius.\n");
     strcat(USAGE, "\tM(1) minimum block length of output.\n");
     strcat(USAGE, "\tP(multiz) multiz: single coverage for reference row multic: no requirement on single coverage.\n");
-    strcat(USAGE, "\tT(/tmp) specify alternate temp directory\n");
+    strcat(USAGE, "\tT($TMPDIR, else /tmp) specify alternate temp directory\n");
     strcat(USAGE, "\tX(0) utilize maf files with different suffix from differnt post processing.\n\t\t0: .sing.maf from single coverage pairwise alignment\n\t\t1: .toast.maf from full size toast\n\t\t2: .toast2.maf from reduced size toast\n");
 
     if (argc < 5)
@@ -264,6 +275,7 @@ int main(int argc, char **argv) {
     OPERAT = copy_string("MZ");
     pid = getpid();
     PREFIX = (char*)malloc(NAMESIZE*sizeof(char));
+    check_tmp_dir(tmpDir);
     sprintf(PREFIX, "%s/_%s_%d_", tmpDir, OPERAT, pid);
     sprintf(_MZ_U1, "%sU1", PREFIX);
     sprintf(_MZ_U2, "%sU2", PREFIX);

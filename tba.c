@@ -275,20 +275,33 @@ static int tba_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char **bz_fi
     return 0;
 }
 
+static char *default_tmp_dir(void) {
+    // $TMPDIR if set, otherwise /tmp: /tmp is often a small partition
+    char *t = getenv("TMPDIR");
+    return (t != NULL && *t != '\0') ? t : "/tmp";
+}
+
+static void check_tmp_dir(char *dir) {
+    if (strlen(dir) > NAMESIZE - 40)
+        fatalf("temporary directory path is too long (at most %d characters): %s", NAMESIZE - 40, dir);
+}
+
 int main(int argc, char **argv) {
     char name_list[10000], USAGE[10000], cmd[500], *big_buf, *bz_file[10000], buf[500], mzPar[500], *mzOpt, *p;
     int i, top = -1, id = 0, nbz, X;
     TreeNode tree[1000];
     pid_t pid;
+    char *tmpDir = default_tmp_dir();     /* default for T= */
 
     sprintf(cmd, "tba.v%d", VERSION);
     argv0 = cmd;
 
-    strcpy(USAGE, "args: [+-] [R=?] [M=?] [E=?] [P=?] [X=?] species-guid-tree maf-source destination\n");
+    strcpy(USAGE, "args: [+-] [R=?] [M=?] [E=?] [P=?] [T=?] [X=?] species-guid-tree maf-source destination\n");
     strcat(USAGE, "\tR(30) dynamic programming radius.\n");
     strcat(USAGE, "\tM(1) minimum block length of output.\n");
     strcat(USAGE, "\tE(null) null: no reference centric alignment, single coverage is guaranteed for every species; reference: refernece centric alignment, singe coverage is guaranteed for reference species.\n");
     strcat(USAGE, "\tP(null) null: run multiz; P=multic specifies to run multic.\n");
+    strcat(USAGE, "\tT($TMPDIR, else /tmp) directory for temporary files\n");
     strcat(USAGE, "\tX(0) utilize maf files with different suffix from differnt post processing.\n\t\t0: .sing.maf from single coverage pairwise alignment\n\t\t1: .toast.maf from full size toast\n\t\t2: .toast2.maf from reduced size toast\n");
 
     if (argc < 4)
@@ -298,23 +311,6 @@ int main(int argc, char **argv) {
 
     pid = getpid();
     OPERAT = copy_string("tba");
-    PREFIX = (char*)malloc(NAMESIZE*sizeof(char));
-    sprintf(PREFIX, "/tmp/_%s_%d_", OPERAT, pid);
-    sprintf(_tba_A, "%sA", PREFIX);
-    sprintf(_tba_B, "%sB", PREFIX);
-    sprintf(_tba_C, "%sC", PREFIX);
-    sprintf(_tba_D, "%sD", PREFIX);
-    sprintf(_tba_E, "%sE", PREFIX);
-    sprintf(_tba_F, "%sF", PREFIX);
-    sprintf(_tba_H, "%sH", PREFIX);
-    sprintf(_tba_L, "%sL", PREFIX);
-    sprintf(_tba_T, "%sT", PREFIX);
-    sprintf(_tba_W, "%sW", PREFIX);
-    sprintf(_tba_U, "%sU", PREFIX);
-    sprintf(_tba_V, "%sV", PREFIX);
-    sprintf(_tba_X, "%sX", PREFIX);
-    sprintf(_tba_Y, "%sY", PREFIX);
-    sprintf(_tba_REF, "%sREF", PREFIX);
 
     // the header line echoing the command: sized to fit (the old fixed buffer's
     // check measured argv[1] instead of the argument being appended)
@@ -352,9 +348,11 @@ int main(int argc, char **argv) {
         ++argv;
     }
 
-    while (argc > 1 && strchr("RMEPX",argv[1][0]) && argv[1][1] == '=') {
+    while (argc > 1 && strchr("RMEPXT",argv[1][0]) && argv[1][1] == '=') {
         if ( argv[1][0]=='E' )
             REF = copy_string(argv[1]+2);
+        else if ( argv[1][0]=='T' )
+            tmpDir = argv[1]+2;
         else if ( argv[1][0]=='P' ) {
             if (strstr(MC, argv[1]+2))
                 mzOpt = MC;
@@ -410,6 +408,24 @@ int main(int argc, char **argv) {
             bz_file[i] = argv[i+2];
     }
     //----------------< end of processing arguments >-----------
+    PREFIX = (char*)malloc(NAMESIZE*sizeof(char));
+    check_tmp_dir(tmpDir);
+    sprintf(PREFIX, "%s/_%s_%d_", tmpDir, OPERAT, pid);
+    sprintf(_tba_A, "%sA", PREFIX);
+    sprintf(_tba_B, "%sB", PREFIX);
+    sprintf(_tba_C, "%sC", PREFIX);
+    sprintf(_tba_D, "%sD", PREFIX);
+    sprintf(_tba_E, "%sE", PREFIX);
+    sprintf(_tba_F, "%sF", PREFIX);
+    sprintf(_tba_H, "%sH", PREFIX);
+    sprintf(_tba_L, "%sL", PREFIX);
+    sprintf(_tba_T, "%sT", PREFIX);
+    sprintf(_tba_W, "%sW", PREFIX);
+    sprintf(_tba_U, "%sU", PREFIX);
+    sprintf(_tba_V, "%sV", PREFIX);
+    sprintf(_tba_X, "%sX", PREFIX);
+    sprintf(_tba_Y, "%sY", PREFIX);
+    sprintf(_tba_REF, "%sREF", PREFIX);
 
     init_scores70();
 
