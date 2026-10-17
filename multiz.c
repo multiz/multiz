@@ -48,6 +48,7 @@
 #include "multi_util.h"
 #include "mz_preyama.h"
 #include "mz_scores.h"
+#include "maf_stream.h"
 
 extern int row2;
 extern int radius;
@@ -57,26 +58,26 @@ extern int SML_BREAK_WID;
 
 #define VERSION 11.2
 
-int multiz(struct mafAli** wk_list1, struct mafAli** wk_list2, FILE* fpw1, FILE* fpw2, int v) {
+int multiz(struct mafStream* wk_list1, struct mafStream* wk_list2, FILE* fpw1, FILE* fpw2, int v) {
     struct mafAli *a1, *a2, *new_ali;
     int beg1, end1, beg2, end2, beg, end, col_beg, col_end;
     int test=0;
 
-    a1 = retrieve_first(wk_list1);
-    a2 = retrieve_first(wk_list2);
+    a1 = mafStreamNext(wk_list1);
+    a2 = mafStreamNext(wk_list2);
 
     while (1) {
         while ( a1 != NULL && ( a2 == NULL || a1->components->start + a1->components->size -1 < a2->components->start)) {
             if ( a1->components->size >= MIN_OUTPUT_WID && fpw1 != NULL && (row2==0 || a1->components->next!=NULL))
                 mafWrite(fpw1, a1);
             mafAliFree(&a1);
-            a1 = retrieve_first(wk_list1);
+            a1 = mafStreamNext(wk_list1);
         }
         while ( a2 != NULL && ( a1 == NULL || a2->components->start + a2->components->size -1 < a1->components->start)) {
             if ( a2->components->size >= MIN_OUTPUT_WID && fpw2 != NULL && (row2==0 || a2->components->next!=NULL))
                 mafWrite(fpw2, a2);
             mafAliFree(&a2);
-            a2 = retrieve_first(wk_list2);
+            a2 = mafStreamNext(wk_list2);
         }
         if ( a1 == NULL && a2 == NULL)
             break;
@@ -101,7 +102,7 @@ int multiz(struct mafAli** wk_list1, struct mafAli** wk_list2, FILE* fpw1, FILE*
           if ( a1->components->size >= MIN_OUTPUT_WID && fpw1 != NULL )
         mafWrite(fpw1, a1);
           mafAliFree(&a1);
-          a1 = retrieve_first(wk_list1);
+          a1 = mafStreamNext(wk_list1);
           continue;
         }
 
@@ -109,7 +110,7 @@ int multiz(struct mafAli** wk_list1, struct mafAli** wk_list2, FILE* fpw1, FILE*
           if ( a2->components->size >= MIN_OUTPUT_WID && fpw2 !=NULL)
             mafWrite(fpw2, a2);
           mafAliFree(&a2);
-          a2 = retrieve_first(wk_list2);
+          a2 = mafStreamNext(wk_list2);
           continue;
         }
         */
@@ -163,14 +164,14 @@ int multiz(struct mafAli** wk_list1, struct mafAli** wk_list2, FILE* fpw1, FILE*
             if ( col_end < a1->textSize-1 && fpw1 != NULL)
                 print_part_ali_col(a1, col_end+1, a1->textSize-1, fpw1);
             mafAliFree(&a1);
-            a1 = retrieve_first(wk_list1);
+            a1 = mafStreamNext(wk_list1);
         }
         if ( end2 <= end1 ) {
             col_end = mafPos2Col(a2->components, end2, a2->textSize);
             if ( col_end < a2->textSize-1 && fpw2 != NULL)
                 print_part_ali_col(a2, col_end+1, a2->textSize-1, fpw2);
             mafAliFree(&a2);
-            a2 = retrieve_first(wk_list2);
+            a2 = mafStreamNext(wk_list2);
         }
     }
     return 0;
@@ -178,9 +179,10 @@ int multiz(struct mafAli** wk_list1, struct mafAli** wk_list2, FILE* fpw1, FILE*
 
 int main(int argc, char** argv) {
     char USAGE[10000];
-    struct mafFile *maf1, *maf2;
-    struct mafAli *ali, *cp_list1, *cp_list2, *wk_list1, *wk_list2;
-    int x, nohead=0, v, i;
+    struct mafIndex *ix1, *ix2;
+    struct mafStream wk_list1, wk_list2;
+    struct mafAli *ali;
+    int x, nohead=0, v, i, blk;
     FILE *fpw1=NULL, *fpw2=NULL;
     char ref_chr[200], cmd[200], args[2000];
 
@@ -256,33 +258,42 @@ int main(int argc, char** argv) {
     }
     init_scores70();
 
-    maf1 = mafReadAll(argv[1], 1);
-    maf2 = mafReadAll(argv[2], 1);
-    cp_list1 = maf1->alignments;
-    cp_list2 = maf2->alignments;
-    maf1->alignments = maf2->alignments = NULL;
-    mafFileFree(&maf1);
-    mafFileFree(&maf2);
+    // Index both files instead of reading them whole: the sweep below only ever needs the current
+    // block of each, so memory is the index plus the blocks being merged. Reference sequences are
+    // taken in the same order as before (first appearance among file 1's remaining blocks), and the
+    // blocks of each in file order, so the output is unchanged.
+    ix1 = mafIndexBuild(argv[1], 1);
+    ix2 = mafIndexBuild(argv[2], 1);
 
-    while ( cp_list1 != NULL && cp_list2 != NULL) {
-        wk_list1 = wk_list2 = NULL;
-        strcpy(ref_chr, cp_list1->components->src);
+    while ( ix1->left > 0 && ix2->left > 0 ) {
+        blk = mafIndexFirstUnused(ix1);
+        strcpy(ref_chr, ix1->chrName[ix1->chr[blk]]);
 
-        seperate_cp_wk(&cp_list1, &wk_list1, ref_chr);
-        seperate_cp_wk(&cp_list2, &wk_list2, ref_chr);
+        mafStreamOpen(&wk_list1, ix1, ix1->chr[blk]);
+        mafStreamOpen(&wk_list2, ix2, mafIndexChr(ix2, ref_chr));
 
         multiz(&wk_list1, &wk_list2, fpw1, fpw2, v);
     }
 
-    if ( cp_list1 != NULL && fpw1 != NULL)
-        for (ali=cp_list1; ali!=NULL; ali=ali->next)
-            if ( row2==0 || ali->components->next != NULL )
-                mafWrite(fpw1, ali);
+    if ( ix1->left > 0 && fpw1 != NULL)
+        for (blk=0; blk<ix1->nblocks; blk++)
+            if ( !ix1->used[blk] ) {
+                ali = mafIndexRead(ix1, blk);
+                if ( row2==0 || ali->components->next != NULL )
+                    mafWrite(fpw1, ali);
+                mafAliFree(&ali);
+            }
 
-    if ( cp_list2 != NULL && fpw2 != NULL)
-        for (ali=cp_list2; ali!=NULL; ali=ali->next)
-            if ( row2==0 || ali->components->next != NULL )
-                mafWrite(fpw2, ali);
+    if ( ix2->left > 0 && fpw2 != NULL)
+        for (blk=0; blk<ix2->nblocks; blk++)
+            if ( !ix2->used[blk] ) {
+                ali = mafIndexRead(ix2, blk);
+                if ( row2==0 || ali->components->next != NULL )
+                    mafWrite(fpw2, ali);
+                mafAliFree(&ali);
+            }
+    mafIndexFree(&ix1);
+    mafIndexFree(&ix2);
 
     if (fpw1 != NULL)
         fclose(fpw1);

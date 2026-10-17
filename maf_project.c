@@ -111,6 +111,8 @@ static void accordion(struct mafAli *a, int n1) {
 }
 
 // fuse alignment b to the end of a
+static int fuse_frees_text = 0;
+
 static void fuse(struct mafAli *a, struct mafAli *b) {
     struct mafComp *c, *d, *unmatched, *x;
     int  n1, n2, n, i;
@@ -140,7 +142,8 @@ static void fuse(struct mafAli *a, struct mafAli *b) {
         } else	// does not occur in b
             for (i = 0; i < n2; ++i)
                 new[n1+i] = '-';
-        //free(c->text);
+        if (fuse_frees_text)    // the list path never freed these; the streaming path must
+            free(c->text);
         c->text = new;
     }
     // find components of b that are not in a, and add dashes on the left
@@ -547,6 +550,181 @@ static struct name_list *get_names(char *target, char *tree_spec) {
     return tree[top].names;
 }
 
+/* ---- streaming projection ------------------------------------------------------------------------
+   The path roast uses (an O file, no species list) without reading the file whole: one pass records,
+   per block, its offset, the reference sequence and start of the row naming the target, echoing
+   comments as mafReadAll() does; blocks that do not name the target go to the O file in file order;
+   then each reference sequence is sorted by start in the index and its blocks are re-read one at a
+   time, fused with an abutting predecessor and written. Reference sequences are taken in the same
+   order as the in-memory path. Memory is about 24 bytes per block plus the block being fused. */
+
+static long *ps_off;
+static int *ps_key;
+
+static int ps_cmp(const void *x, const void *y) {
+    int a = *(const int *)x, b = *(const int *)y;
+    if (ps_key[a] != ps_key[b])
+        return ps_key[a] < ps_key[b] ? -1 : 1;
+    return 0;
+}
+
+static struct mafAli *ps_read(struct mafFile *mf, int blk) {
+    struct mafAli *a;
+    if (fseek(mf->fp, ps_off[blk], SEEK_SET) != 0)
+        fatalf("cannot seek in %s", mf->fileName);
+    free(mf->pending);          // a line kept by the previous read belongs to wherever that
+    mf->pending = NULL;         // read stopped, not to this block
+    if ((a = mafNext(mf)) == NULL)
+        fatalf("cannot re-read a block of %s", mf->fileName);
+    return a;
+}
+
+static void project_stream(char *fileName, char *target, FILE *fp, int beg, int end) {
+    struct mafFile *mf = mafOpen(fileName, 0);
+    struct mafAli *a, *A, *cur = NULL;
+    struct mafComp *c, *b;
+    FILE *in = mf->fp;
+    char *line = NULL, src[500], strand, **chrName = NULL, *dot;
+    size_t cap = 0;
+    ssize_t len;
+    long here;
+    int nb = 0, capb = 0, nchr = 0, capc = 0, *chr = NULL, inblock = 0, matched = 0;
+    int start, size, srcSize, i, k, n, nkeep, *list, *keep, *other;
+
+    if (mf->pending != NULL) {          // no header: index from the top, as in maf_stream.c
+        free(mf->pending);
+        mf->pending = NULL;
+        if (fseek(in, 0L, SEEK_SET) != 0)
+            fatalf("cannot seek in %s", fileName);
+    }
+    for (here = ftell(in); (len = getline(&line, &cap, in)) != -1; here += len) {
+        if (line[0] == '#') {
+            if (strstr(line, "eof") == NULL)
+                printf("%s", line);
+            continue;
+        }
+        if (line[0] == 'a') {
+            if (nb == capb) {
+                capb = capb ? 2 * capb : 1024;
+                ps_off = realloc(ps_off, capb * sizeof(long));
+                ps_key = realloc(ps_key, capb * sizeof(int));
+                chr = realloc(chr, capb * sizeof(int));
+                if (ps_off == NULL || ps_key == NULL || chr == NULL)
+                    fatal("out of memory indexing maf");
+            }
+            ps_off[nb] = here;
+            chr[nb] = -1;
+            nb++;
+            inblock = 1;
+            matched = 0;
+        } else if (line[0] == '\n' || line[0] == ' ')
+            inblock = 0;
+        else if (inblock && !matched && line[0] == 's') {
+            if (sscanf(line, "s %499s %d %d %c %d", src, &start, &size, &strand, &srcSize) != 5)
+                fatalf("bad component in file %s:\n%s", fileName, line);
+            dot = strchr(src, '.');
+            if (dot != NULL)
+                *dot = '\0';
+            k = same_string(src, target);
+            if (dot != NULL)
+                *dot = '.';
+            if (k || same_string(src, target)) {
+                matched = 1;
+                for (k = 0; k < nchr && strcmp(chrName[k], src) != 0; k++)
+                    ;
+                if (k == nchr) {
+                    if (nchr == capc) {
+                        capc = capc ? 2 * capc : 64;
+                        if ((chrName = realloc(chrName, capc * sizeof(char *))) == NULL)
+                            fatal("out of memory indexing maf");
+                    }
+                    chrName[nchr++] = copy_string(src);
+                }
+                chr[nb - 1] = k;
+                ps_key[nb - 1] = (strand == '-' ? srcSize - start - size : start);
+            }
+        }
+    }
+    free(line);
+
+    // blocks that do not name the target: to the O file, in file order, as read
+    for (i = 0; i < nb; i++)
+        if (chr[i] < 0) {
+            a = ps_read(mf, i);
+            mafWrite(fp, a);
+            mafAliFree(&a);
+        }
+
+    // the in-memory path prepends each matching block to a list, then repeatedly takes the reference
+    // sequence of the list's head, keeps its blocks (in list order) and prepends the rest to a new list
+    list = ckalloc((nb ? nb : 1) * sizeof(int));
+    keep = ckalloc((nb ? nb : 1) * sizeof(int));
+    other = ckalloc((nb ? nb : 1) * sizeof(int));
+    for (n = 0, i = nb - 1; i >= 0; i--)
+        if (chr[i] >= 0)
+            list[n++] = i;
+    init_scores70();
+    fuse_frees_text = 1;
+    while (n > 0) {
+        int ref = chr[list[0]], nother = 0;
+        for (nkeep = 0, i = 0; i < n; i++)
+            if (chr[list[i]] == ref)
+                keep[nkeep++] = list[i];
+            else
+                other[nother++] = list[i];
+        for (i = 0; i < nother; i++)        // prepending reverses them
+            list[i] = other[nother - 1 - i];
+        n = nother;
+
+        qsort(keep, nkeep, sizeof(int), ps_cmp);   // same order in as the list path, so ties match too
+
+        for (i = 0; i < nkeep; i++) {
+            a = ps_read(mf, keep[i]);
+            for (c = a->components; c != NULL; c = c->next)
+                if (same_string(c->name, target) || same_string(c->src, target))
+                    break;
+            if (c == NULL)
+                fatal("maf_project: indexed block lost its target row");
+            if (c != a->components) {
+                for (b = a->components; b != NULL && b->next != c; b = b->next)
+                    ;
+                b->next = c->next;
+                c->next = a->components;
+                a->components = c;
+            }
+            if (c->strand == '-')
+                rc(a);
+            if (cur != NULL && abut(cur, a)) {
+                fuse(cur, a);       // fuse() copies a's columns into cur, so a can go
+                mafAliFree(&a);
+                continue;
+            }
+            if (cur != NULL) {
+                A = cur;
+                c = A->components;
+                if (beg < 0 || (c->start <= end && c->start + c->size > beg))
+                    mafWrite(stdout, A);
+                mafAliFree(&A);
+            }
+            cur = a;
+        }
+        if (cur != NULL) {
+            c = cur->components;
+            if (beg < 0 || (c->start <= end && c->start + c->size > beg))
+                mafWrite(stdout, cur);
+            mafAliFree(&cur);
+        }
+    }
+    free(list);
+    free(keep);
+    free(other);
+    free(chr);
+    for (k = 0; k < nchr; k++)
+        free(chrName[k]);
+    free(chrName);
+    mafFileFree(&mf);
+}
+
 int main(int argc, char **argv) {
     struct mafFile *mf;
     struct mafAli *a, *prev, *next, *A = NULL, *B, **align, *projection;
@@ -613,6 +791,12 @@ int main(int argc, char **argv) {
         for (i = 1; i < orig_argc; ++i)
             printf(" %s", argv[i]);
         putchar('\n');
+    }
+
+    if (fp != NULL && n == NULL) {      // roast's use: stream, do not read the file whole
+        project_stream(argv[1], target, fp, beg, end);
+        mafWriteEnd(stdout);
+        return 0;
     }
 
     mf = mafReadAll(argv[1], 1);
