@@ -246,20 +246,36 @@ reconstruction threads a second `FILE* fpw1` through `pre_yama` and adds
 segments are recovered into both unused streams. If you compare this tree's
 `out1`/`out2` output against UCSC's, expect theirs to contain strictly more.
 
-The reconstruction is well supported: `multiz()` and `pre_yama()` match UCSC's
-binary instruction for instruction, it reproduces the published 5-way alignment
-7 of 7, and its `roast` output is identical to UCSC's apart from `#` path
-comments. What remains unverified is only the source text — comments and
-formatting — not the behaviour.
+The reconstruction has been verified at the binary level. Rebuilt with the two
+compilers UCSC used (gcc 4.4.6-4 and 4.4.7), `multiz`, `roast`, and
+`maf_project` come out at UCSC's exact file sizes with byte-identical machine
+code and data — `.text`, `.rodata`, `.data`, `.init`, `.fini`, `.plt`,
+`.eh_frame`, and the dynamic symbols all match. The only differences are 326
+bytes per binary: the random build ID and the compiler-runtime version note.
 
-One detail matters if you apply that patch here rather than just comparing
-against it. UCSC's build also drops the `if (fpw2 != NULL)` guard at the `K==0`
-site, which is safe for them because they ship no `multic` and `roast` defaults
-to `P=multiz`, so nothing ever passes a null stream. **In this tree `multic` is
-built and reachable** — via `tba P=multic` or `roast P=multic` — and
-`multic.c:72` is the one caller that passes `NULL`. Neither
-`print_part_ali_col` (`multi_util.c:620`) nor `mafWrite` (`maf.c:251`) checks
-for it. Keep the guard.
+So for those three programs the unused-block change is not merely correct where
+it overlaps — it is the *only* change. Two programs fall outside that evidence:
+`tba`, which UCSC does not use in their multiz builds, and `multic`, which they
+do not ship at all.
+
+**If you apply that patch here, keep the `K==0` NULL guard.** UCSC's build drops
+it, which is safe for them because they ship no `multic` and `roast` defaults to
+`P=multiz`, so nothing ever passes a null stream. In this tree `multic` is built
+and reachable — via `tba P=multic` or `roast P=multic` — and `multic.c:72` is
+the one caller that passes `NULL`, which neither `print_part_ali_col`
+(`multi_util.c:620`) nor `mafWrite` (`maf.c:251`) checks for.
+
+This is not a theoretical edge case. Tested on three ordinary ~2 MB buckets of
+the hg38 5-way under `P=multic`:
+
+| `multic` build | Result |
+|---|---|
+| stock 2009-01-21 | runs — the reference output |
+| patch **with** the guard | identical alignment lines to stock on all three |
+| patch **without** the guard (UCSC's) | segfaults on all three — `fprintf(NULL)`, then `maf_project` fails |
+
+The guarded form is the one to use: identical to UCSC's under `multiz`,
+identical to stock under `multic`.
 
 **`all` does nothing in this build.** The flag sets `row2=0` (`multiz.c:229`),
 which is already the initial value (`multi_util.c:24`), and every output guard
