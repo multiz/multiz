@@ -146,7 +146,7 @@ int multiz(struct mafAli** wk_list1, struct mafAli** wk_list2, FILE* fpw1, FILE*
             if ( col_beg != 0 && fpw2 != NULL)
                 print_part_ali_col(a2, 0, col_beg-1, fpw2);
         }
-        new_ali = pre_yama(a1, a2, beg, end, radius, v, fpw2);
+        new_ali = pre_yama(a1, a2, beg, end, radius, v, fpw1, fpw2);
 
         if ( new_ali != NULL && new_ali->components->size >= MIN_OUTPUT_WID)
             mafWrite(stdout, new_ali);
