@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L  /* popen, fileno, pid_t: hidden by strict ISO C */
 #include <unistd.h>
 #include "util.h"
 #include "multi_util.h"

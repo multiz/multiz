@@ -18,7 +18,7 @@
 
 
 typedef unsigned char uchar;
-typedef int bool;
+#include <stdbool.h>      /* bool is a keyword in C23; stdbool works from C99 on */
 
 extern char *argv0;
 

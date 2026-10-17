@@ -5,10 +5,12 @@
 
 typedef int ss_t[128][128];
 
-int	**ss, // 128x128 array of substitution scores
-*gop; // 16-position array of quasi-natural gap-open penalties
+// defined once, in mz_scores.c (a definition here is one per includer, which
+// gcc 10 and later reject at link time)
+extern int **ss,  // 128x128 array of substitution scores
+       *gop;      // 16-position array of quasi-natural gap-open penalties
 
-int gap_open, gap_extend;
+extern int gap_open, gap_extend;
 
 #define SS(c,d) ss[c][d]
 #define GAP(s,t,u,v) gop[(s<<3)+(t<<2)+(u<<1)+v]
