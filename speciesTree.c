@@ -131,7 +131,7 @@ NameListPtr formNameList(char* str) {
     if ( *ptr == '\0' )
       tail = '\0';
     *ptr = '\0';
-    nname = (NameListPtr)malloc(sizeof(NameListPtr));
+    nname = (NameListPtr)malloc(sizeof(NameList));
     nname->name = copy_string(str);
     nname->next = ret;
     ret = nname;
