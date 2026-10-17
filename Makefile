@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra
-CFLAGS += -O0
+CFLAGS += -O2
 #CFLAGS += -ggdb3
 #CFLAGS += -pg
 
