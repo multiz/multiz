@@ -350,8 +350,8 @@ Four details that generalise:
   `maf_project` read their whole input, so a job's peak memory grew with the
   multiple alignment, roughly 1.2–1.6 times the largest file one step reads.
   Since 11.3 both stream their input; on the hg38 5-way chrX bucket roast peaks
-  at 13 MB instead of 694 MB, and on a 1 Mb window of a 213-genome alignment at
-  under 8 MB. Chunks can therefore be as large as running time allows.
+  at 13 MiB instead of 677 MiB, and on a 1 Mb window of a 214-genome alignment
+  at under 8 MiB. Chunks can therefore be as large as running time allows.
 
 ### A TBA run at scale
 

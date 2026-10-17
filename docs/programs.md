@@ -381,7 +381,7 @@ writes those not naming the target to the other-mafs file, then each reference
 sequence's blocks are sorted in the index and re-read one at a time, fused with
 an abutting predecessor, and written. Output is identical to the in-memory path,
 which every other form still uses. On the hg38 multiz5way chrX bucket this is the
-difference between 677 MB and 13 MB at the final projection.
+difference between 677 MiB and 13 MiB at the final projection.
 
 Version 13 (`maf_project.c:29`). `README2` describes v10.
 
