@@ -8,31 +8,56 @@
 #include "multi_util.h"
 #include "mz_scores.h"
 
+unsigned long get_line(char **linep, unsigned long *np, FILE *fp);
+
 struct mafFile *mafOpen(char *fileName, int verbose) {
     struct mafFile *mf;
     FILE *fp;
-    char buf[500], *s;
+    char *line = NULL, *s;
+    unsigned long nb = 0;
+    long len;
 
     mf = ckalloc(sizeof(struct mafFile));
     mf->next = NULL;
     fp = mf->fp = ckopen(fileName, "r");
-    if (fgets(buf, 500, fp) == NULL) {
-        if ( ferror(fp) )
-            fprintf(stderr, "error file reading\n");
-        fatalf("empty file %s", fileName);
-    }
-    if (sscanf(buf, "##maf version=%d", &(mf->version)) != 1)
-        fatalf("improper maf header line: %s", buf);
-    if ((s = strstr(buf, "scoring=")) != NULL)
-        mf->scoring = copy_string(s+8);
-    else
-        mf->scoring = NULL;
     mf->alignments = NULL;
     mf->fileName = copy_string(fileName);
     mf->line_nbr = 0;
     mf->pending = NULL;
     mf->verbose = verbose;
-    return mf;
+    mf->scoring = NULL;
+    if ((len = get_line(&line, &nb, fp)) == -1) {
+        if ( ferror(fp) )
+            fprintf(stderr, "error file reading\n");
+        fatalf("empty file %s", fileName);
+    }
+    mf->line_nbr++;
+    if (sscanf(line, "##maf version=%d", &(mf->version)) == 1) {
+        if ((s = strstr(line, "scoring=")) != NULL)
+            mf->scoring = copy_string(s+8);
+        free(line);
+        return mf;
+    }
+    // No header, as lastz --format=maf- writes: skip blank lines and comments
+    // (echoed as mafNext does) and take the first block's 'a' line as the
+    // start of a version-1 file. mafNext picks it up from mf->pending.
+    for (;;) {
+        if (line[0] == 'a') {
+            mf->version = 1;
+            mf->pending = copy_string(line);
+            free(line);
+            return mf;
+        }
+        if (line[0] == '#') {
+            if (mf->verbose && strstr(line, "eof") == NULL)
+                printf("%s", line);
+        } else if (line[0] != '\n' && line[0] != ' ')
+            fatalf("improper maf header line in %s (a maf file starts with "
+                   "'##maf version=1' or with a block's 'a' line): %s", fileName, line);
+        if ((len = get_line(&line, &nb, fp)) == -1)
+            fatalf("no alignment blocks in %s", fileName);
+        mf->line_nbr++;
+    }
 }
 
 /* ------- start of code to read arbitrarily long lines and echo comments --- */
