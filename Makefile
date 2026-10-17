@@ -58,8 +58,8 @@ tba : util.h util.c align_util.h align_util.c multi_util.h multi_util.c maf.h ma
 multic : util.h util.c maf.h maf.c multi_util.h multi_util.c mz_scores.h mz_scores.c mz_preyama.h mz_preyama.c mz_yama.h mz_yama.c multic.c seq.h seq.c nib.h nib.c charvec.h charvec.c align_util.h align_util.c
 	$(CC) $(CFLAGS) util.c multi_util.c maf.c mz_scores.c nib.c seq.c charvec.c mz_yama.c mz_preyama.c align_util.c multic.c -o multic
 
-multiz : util.h util.c multi_util.h multi_util.c maf.h maf.c mz_scores.h mz_scores.c speciesTree.h speciesTree.c nib.h nib.c seq.h seq.c charvec.h charvec.c multiz.c mz_preyama.h mz_preyama.c mz_yama.h mz_yama.c align_util.h align_util.c
-	$(CC) $(CFLAGS) util.c multi_util.c maf.c mz_scores.c speciesTree.c nib.c seq.c charvec.c mz_preyama.c mz_yama.c multiz.c align_util.c -o multiz
+multiz : util.h util.c multi_util.h multi_util.c maf.h maf.c mz_scores.h mz_scores.c speciesTree.h speciesTree.c nib.h nib.c seq.h seq.c charvec.h charvec.c multiz.c mz_preyama.h mz_preyama.c mz_yama.h mz_yama.c align_util.h align_util.c maf_stream.h maf_stream.c
+	$(CC) $(CFLAGS) util.c multi_util.c maf.c mz_scores.c speciesTree.c nib.c seq.c charvec.c mz_preyama.c mz_yama.c multiz.c align_util.c maf_stream.c -o multiz
 
 maf_sort : util.h util.c maf.h maf.c multi_util.h multi_util.c maf_sort.h maf_sort.c maf_sort_main.c seq.h seq.c nib.h nib.c charvec.h charvec.c mz_scores.h mz_scores.c
 	$(CC) $(CFLAGS) util.c maf.c multi_util.c maf_sort.c maf_sort_main.c seq.c nib.c charvec.c mz_scores.c -o maf_sort
