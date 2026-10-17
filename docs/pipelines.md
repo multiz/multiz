@@ -77,7 +77,7 @@ guarantee about this binary's output.
 
 `multiz` scores a multiple alignment as the sum of all implied pairwise
 alignments, with substitutions scored by the HOXD70 matrix
-(`mz_scores.c:10-13`):
+(`mz_scores.c:11-14`):
 
 |   | A | C | G | T |
 |---|---:|---:|---:|---:|
@@ -86,15 +86,15 @@ alignments, with substitutions scored by the HOXD70 matrix
 | **G** | −31 | −125 | 100 | −114 |
 | **T** | −123 | −31 | −114 | 91 |
 
-A gap of length *k* costs 400 + 30*k* (`mz_scores.c:23-24`), extended to
+A gap of length *k* costs 400 + 30*k* (`mz_scores.c:24-25`), extended to
 multiple alignments with quasi-natural gap costs. Overhangs — gaps at the
 extreme ends — are exempt from the **gap-open** charge only (`mz_yama.c:16`,
-and the `// not for end-gaps` guards at `mz_yama.c:123,211`); the per-column
+and the `// not for end-gaps` guards at `mz_yama.c:129,217`); the per-column
 extension penalty still applies. The supplement's blanket "not penalized" is
 looser than what the code does.
 
 A second matrix calibrated for 85% neutral identity, with gap costs 600 + 50*k*,
-is compiled in (`mz_scores.c:26-27`) — but **`init_scores85()` is never
+is compiled in (`mz_scores.c:27-28`) — but **`init_scores85()` is never
 called**. Every program in the suite calls `init_scores70()`, so this matrix is
 unreachable here; upstream it belonged to HUMOR's mouse–rat alignments.
 
@@ -261,7 +261,9 @@ kept — use `all_bz b=0`.
 
 The UCSC Genome Browser's multi-way conservation tracks are built with this
 software. Their `multiz.2009-01-21_patched` is the same upstream release this
-repository forked, and their build notes in the kent tree
+repository forked, plus Minmei Hou's 2014 fix, which this repository includes
+from 11.3 on — so the two now produce identical alignments. Their build notes in
+the kent tree
 (`src/hg/makeDb/doc/*/multiz*way.txt`) are the most detailed published record of
 running it at scale. Two things there are worth knowing.
 
@@ -344,6 +346,12 @@ Four details that generalise:
 - **Budget real time.** The hg38 30-way took 678 cluster jobs, averaging 95
   minutes each, about 1,069 CPU hours, 22 hours wall-clock
   (`multiz30way.txt:484-489`).
+- **Memory is no longer the limit.** Up to 11.2, `multiz` and the final
+  `maf_project` read their whole input, so a job's peak memory grew with the
+  multiple alignment, roughly 1.2–1.6 times the largest file one step reads.
+  Since 11.3 both stream their input; on the hg38 5-way chrX bucket roast peaks
+  at 13 MB instead of 694 MB, and on a 1 Mb window of a 213-genome alignment at
+  under 8 MB. Chunks can therefore be as large as running time allows.
 
 ### A TBA run at scale
 
@@ -384,6 +392,24 @@ tree and `blastzWrapper` not at all, and no source or install line for it is
 published.
 
 ## Troubleshooting
+
+Several errors are fixed in 11.3. If you see one of these, check
+`multiz`'s version (the `# multiz.v…` header line): from 11.3 on they should
+not occur.
+
+- **`ckalloc: request for negative space`** — two long insertions at the same
+  reference position made a buffer size overflow.
+- **`Error generating edit script`**, or a long block with many rows coming out
+  misaligned with no error — the dynamic-programming scores overflowed.
+- **`inconsistent row size`** — two MAF blocks with no blank line between them
+  were read as one. 11.3 reads them correctly; with older builds, make sure every
+  input ends with a blank line before concatenating.
+- **`improper maf header line: a score=…`** — a MAF with no header line, such as
+  `lastz --format=maf-` output. Older builds need the `##maf version=1` line.
+- **`overflow = big_buf`, or a segfault with no message on a run with thousands
+  of inputs** — fixed-size command buffers in `roast` and `tba`.
+- **`No space left on device` from `tba`** — tba wrote only to `/tmp`. Set
+  `$TMPDIR` or pass `T=`.
 
 **`roast` dies with a `multiz` usage dump** — you probably passed `C=` without
 `P=multic`. `multiz` does not accept `C=`, and rather than naming the flag it

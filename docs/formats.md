@@ -40,9 +40,9 @@ Two practical consequences:
   their production runs.
 - **Keep names short, alphabetic-initial, and free of `(`, `)`, and
   whitespace.** `tba` and `roast` parse the tree with `speciesTree.c`, which
-  requires a name to *begin* with a letter (`speciesTree.c:54`), allows letters,
-  digits, `_` and `.` thereafter (`speciesTree.c:59`), and treats any other
-  character as fatal (`speciesTree.c:69-70`). `all_bz` uses a looser tokeniser
+  requires a name to *begin* with a letter (`speciesTree.c:61`), allows letters,
+  digits, `_` and `.` thereafter (`speciesTree.c:66`), and treats any other
+  character as fatal (`speciesTree.c:76-77`). `all_bz` uses a looser tokeniser
   of its own (`NON_NAME " ()"`, `all_bz.c:44`) — so a name starting with a digit
   passes `all_bz` and then fails in `tba`. Avoid `.` as well: it is the
   separator in generated MAF filenames.
@@ -128,7 +128,7 @@ Requirements:
 
 - **Make it strictly binary.** Every internal node should have exactly two
   children. A polytomy is **not rejected** — it is silently re-interpreted.
-  `speciesTree.c:71` merges the top two completed subtrees after every token,
+  `speciesTree.c:78` merges the top two completed subtrees after every token,
   so `(a b c)` is quietly read as `((a b) c)`, a left comb. You get an
   alignment, computed against a tree you did not specify.
 - **Leaf names are species names**, matching sequence filenames exactly.
@@ -196,7 +196,7 @@ A file is a `##maf` header line followed by blocks. Each block is an `a` line
 carrying a score, then one `s` line per row:
 
 ```
-##maf version=12 scoring=tba.v12
+##maf version=13 scoring=tba.v13
 a score=23262.0
 s human.chr7    27578828 38 + 158545518 AAA-GGGAATGTTAACCAAATGA...
 s mouse.chr6    53215344 38 + 151104725 -AAAGGGAATGTTAAGCAAACGA...
@@ -206,10 +206,22 @@ s rat.chr4      81344243 40 + 187371129 -AAAGGGGATGCTAAGCCAATGA...
 Fields on an `s` line: `src`, `start`, `size`, `strand`, `srcSize`, and the
 gapped sequence text.
 
+How this suite reads a file, since 11.3:
+
+- **The header is optional.** A file that starts with a block's `a` line, as
+  `lastz --format=maf-` writes, is read as `version=1`. Blank lines and `#`
+  comments before the first block are allowed. A file that starts with anything
+  else is refused with `improper maf header line`.
+- **A block ends at a blank line or at the next `a` line.** Earlier versions
+  ended a block only at a blank line, so two blocks run together (for example by
+  concatenating a file that lacks the blank line after its last block) were read
+  as one. That failed with `inconsistent row size`, or, when the widths matched,
+  silently produced a merged block.
+
 The `version=` number above is not a typo: `tba` substitutes its own program
-version into that field (`tba.c:409`), so it writes `version=12` where the MAF
-spec expects `version=1`. `roast` writes `version=1` correctly
-(`auto_mz.c:266`). Parsers in this suite do not care; stricter third-party
+version into that field (`tba.c:435`), so it writes `version=13` (`version=12`
+before 11.3) where the MAF spec expects `version=1`. `roast` writes `version=1` correctly
+(`auto_mz.c:289`). Parsers in this suite do not care; stricter third-party
 parsers might.
 
 Two conventions that regularly trip people up:

@@ -81,7 +81,7 @@ the guide tree from leaves to root, invoking `multiz` (or `multic`) at each
 internal node.
 
 ```
-tba [+-] [R=?] [M=?] [E=?] [P=?] [X=?] species-guide-tree maf-source destination-file
+tba [+-] [R=?] [M=?] [E=?] [P=?] [T=?] [X=?] species-guide-tree maf-source destination-file
 ```
 
 | Option | Meaning |
@@ -92,6 +92,7 @@ tba [+-] [R=?] [M=?] [E=?] [P=?] [X=?] species-guide-tree maf-source destination
 | `M` (1) | Minimum block length in the output. |
 | `E` (null) | With `E=species`, produce a reference-centric alignment with single coverage guaranteed for that species only. Without it, single coverage is guaranteed for every species. |
 | `P` (null) | Aligner to use: default `multiz`; `P=multic` selects `multic`. |
+| `T` (`$TMPDIR`, else `/tmp`) | Directory for temporary files. New in tba 13 (multiz 11.3); before that tba always used `/tmp`. |
 | `X` (0) | Which pairwise suffix to consume: `0` `.sing.maf` · `1` `.toast.maf` · `2` `.toast2.maf`. |
 
 `maf-source` is the list of pairwise MAF files, normally given as a glob such as
@@ -99,7 +100,7 @@ tba [+-] [R=?] [M=?] [E=?] [P=?] [X=?] species-guide-tree maf-source destination
 
 **Undocumented alternative:** `tba [opts] -f listfile tree destination` reads the
 MAF filenames from `listfile`, one per line, instead of from the command line
-(`tba.c:387`). `roast` accepts the same form (`auto_mz.c:237`). This is useful
+(`tba.c:391`). `roast` accepts the same form (`auto_mz.c:255`). This is useful
 when the list would overflow the shell's argument limit.
 
 **`tba` requires the sequence files to be present** in the working directory,
@@ -116,8 +117,9 @@ must be on `PATH`. (`roast` shells out to a smaller set — only `multiz`,
 
 - If `E=` is set, single coverage is only enforced on the reference, so the
   inputs may contain duplicates relative to other species — use `P=multic`.
-- `tba` does **not** accept `T=` (temp directory); only [`roast`](#roast) does.
-- Version 12 (`tba.c:5`).
+- The temporary-directory path is limited to 460 characters; a longer one is
+  refused with an error.
+- Version 13 (`tba.c:5`).
 
 ### roast
 
@@ -136,7 +138,7 @@ roast [+-] [R=?] [M=?] [P=?] [T=?] [X=?] [C=?] E=reference-species species-guide
 | `R` (30) | Dynamic-programming radius. |
 | `M` (1) | Minimum block length of output. |
 | `P` (multiz) | `multiz` requires single coverage on the reference row; `multic` imposes no such requirement. |
-| `T` (/tmp) | Alternate temporary directory. |
+| `T` (`$TMPDIR`, else `/tmp`) | Alternate temporary directory. Before roast 4 (multiz 11.3) the default was always `/tmp`. |
 | `X` (0) | Pairwise suffix selector, as for `tba`. |
 | `C` (50) | Connection threshold, 0–100. **Only valid with `P=multic`.** |
 | `E` | Reference species. **Required** — `roast` exits if it is absent. |
@@ -147,16 +149,18 @@ roast [+-] [R=?] [M=?] [P=?] [T=?] [X=?] [C=?] E=reference-species species-guide
   alignment recipes call `autoMZ` out of a directory named
   `multiz.2009-01-21_patched` — the same upstream tarball this repository
   forked — and invoke it as `autoMZ + T=$tmp E=$db "tree" *.sing.maf out`,
-  an argument set that only `auto_mz.c` accepts (`tba` has no `T=`). The name
+  an argument set that only `auto_mz.c` accepted until 11.3, when `tba` gained
+  `T=`. The name
   `roast` was introduced when it replaced `autoMZ` upstream on 2008-05-07
   (`docs/historical/README2:2`). Treat UCSC's `autoMZ` recipes as `roast`
-  recipes; the correspondence is by interface, as their build is patched and
-  was not compared byte for byte.
+  recipes. Since 11.3 this build includes their one change (see
+  [`multiz`](#multiz)), and rebuilding the hg38 multiz5way with their recipe
+  reproduces their published alignment byte for byte.
 - `C=` is forwarded to the aligner unconditionally. Because `multiz` only scans
-  for `RMLS` (`multiz.c:205`), a leading `C=` ends its option loop immediately
-  and the argument count check at `multiz.c:238` then fails — so `roast C=…`
+  for `RMLS` (`multiz.c:207`), a leading `C=` ends its option loop immediately
+  and the argument count check at `multiz.c:240` then fails — so `roast C=…`
   without `P=multic` dies with `multiz`'s **usage dump**, not a message naming
-  `C`. (`multiz.c:223`'s `illegal flag` branch is unreachable.)
+  `C`. (`multiz.c:225`'s `illegal flag` branch is unreachable.)
 - `T=` is accepted by this version but absent from `README2`. UCSC relies on it
   to place scratch files on `/dev/shm`.
 - `roast` is stated to guarantee that every input pairwise alignment appears in
@@ -165,7 +169,7 @@ roast [+-] [R=?] [M=?] [P=?] [T=?] [X=?] [C=?] E=reference-species species-guide
   are orthologous only when the guide tree is skewed and the reference sits at
   the innermost node. These are the algorithm's designed properties as described
   in Hou (2007), §4.2.4 — they are not verified by anything in this repository.
-- Internal version 3 (`auto_mz.c:7`).
+- Internal version 4 (`auto_mz.c:8`).
 
 ---
 
@@ -182,16 +186,16 @@ blastzWrapper seq-file1 seq-file2 [options]
 All `[options]` are passed straight through to the underlying aligner.
 
 **In this fork the underlying aligner is `lastz`, not `blastz`**
-(`blastzWrapper.c:14`). `lastz` must be on `PATH`. The program name is
+(`blastzWrapper.c:15`). `lastz` must be on `PATH`. The program name is
 unchanged so that existing scripts and the rest of the suite keep working.
 
 The wrapper exists because the aligner only handles the first FASTA entry of
 its first input. `blastzWrapper` runs it repeatedly so that every entry of one
 file is aligned against every entry of the other. Note that it **swaps the two
 files** when the first holds more entries than the second, iterating over the
-smaller one (`blastzWrapper.c:101-111`); the set of pairs is unaffected, but
+smaller one (`blastzWrapper.c:102-112`); the set of pairs is unaffected, but
 "file 1" internally is not necessarily the file you passed first. It also
-shells out to `grep` (`blastzWrapper.c:132`).
+shells out to `grep` (`blastzWrapper.c:133`).
 
 Each entry must carry a
 [formatted header](formats.md#formatted-headers-multiple-contigs-per-species)
@@ -199,7 +203,7 @@ when a file holds more than one.
 
 Output is in `lav` format on stdout; pipe it through [`lav2maf`](#lav2maf).
 
-Version 11 (`blastzWrapper.c:15`).
+Version 11 (`blastzWrapper.c:16`).
 
 ### multiz
 
@@ -217,7 +221,7 @@ multiz [R=?] [M=?] [L=?] [S=?] file1 file2 v [out1 out2] [nohead] [all]
 | `L` (20) | Large break width. **Undocumented upstream, and inert** — see below. |
 | `S` (2) | Small break width. **Undocumented upstream, and inert** — see below. |
 | `v` | Required. `0` neither reference alignment is fixed; `1` the reference alignment in `file1` is fixed. |
-| `out1 out2` | Files collecting unused blocks from `file1` and `file2`. Both or neither; default is stdout. **Incomplete in this build** — see below. |
+| `out1 out2` | Files collecting unused blocks from `file1` and `file2`. Both or neither; default is stdout. Complete since 11.3 — see below. |
 | `nohead` | Suppress the MAF header. |
 | `all` | **Inert in this build** — accepted and consumed, but single-row blocks are emitted either way. See the note below. |
 
@@ -227,60 +231,48 @@ they might.
 
 `L=` and `S=` parse and validate, but **nothing reads them**. The only code that
 used them — deciding when to leave a block unbroken rather than split it — sits
-inside a comment block spanning `multiz.c:99-115`, headed "the unused positions
+inside a comment block spanning `multiz.c:100-116`, headed "the unused positions
 overlap with the unbroken part". Their defaults live in `multi_util.c:15-16`;
 setting them changes no output. They appear in neither the usage message nor any
 historical README.
 
-**`out1`/`out2` do not capture everything.** `multiz` passes only `fpw2` into
-`pre_yama()` (`multiz.c:149`), so when that routine takes one of its early
-returns the corresponding segment of `file1` is written nowhere — and on two of
-the three bail-out paths the `file2` segment is dropped as well. Only the
-`K==0` path emits anything (`mz_preyama.c:195`). Blocks lost this way appear in
-neither the alignment nor the unused-block files.
+**Unused segments, and the 2014 fix.** When `pre_yama()` cannot align an
+overlap because one side has no residues in it, it returns early. Up to 11.2 only
+one of its three early returns wrote the surviving piece anywhere, so the other
+two dropped it: it reached neither the alignment nor the `out1`/`out2` files that
+`roast` re-merges. On UCSC's hg38 5-way that is about 0.02% of the closest
+species' aligned bases.
 
-This is what UCSC's patch to their `multiz.2009-01-21_patched` build addresses.
-The patch itself is unpublished, but it has been reconstructed: the
-reconstruction threads a second `FILE* fpw1` through `pre_yama` and adds
-`print_part_ali_col` calls at the two silent bail-outs, so the unaligned
-segments are recovered into both unused streams. If you compare this tree's
-`out1`/`out2` output against UCSC's, expect theirs to contain strictly more.
+Minmei Hou, multiz's maintainer in the Miller Lab, fixed this and sent the change
+to UCSC in January 2014. UCSC has used it ever since as
+`multiz.2009-01-21_patched`, but never published the source. It was
+reconstructed from UCSC's binaries: tag `20090121` plus the change, built with
+the compilers UCSC used (gcc 4.4.6-4 and 4.4.7), gives `multiz`, `roast` and
+`maf_project` with byte-identical machine code and data to UCSC's. UCSC
+confirmed the change was hers. It is included from 11.3 on: `pre_yama()` takes
+both unused streams (`multiz.c:150`) and writes the surviving piece on all three
+early returns.
 
-The reconstruction has been verified at the binary level. Rebuilt with the two
-compilers UCSC used (gcc 4.4.6-4 and 4.4.7), `multiz`, `roast`, and
-`maf_project` come out at UCSC's exact file sizes with byte-identical machine
-code and data — `.text`, `.rodata`, `.data`, `.init`, `.fini`, `.plt`,
-`.eh_frame`, and the dynamic symbols all match. The only differences are 326
-bytes per binary: the random build ID and the compiler-runtime version note.
+One difference from UCSC's version: theirs drops the `NULL` checks on those
+writes, which is safe for them because they ship no `multic`. Here `multic` is
+built, and passes `NULL` for both streams (`multic.c:72`), so the checks are kept
+(`mz_preyama.c:187,196,228`). With UCSC's version, `roast P=multic` segfaults; with
+this one its output is unchanged. Under `multiz` and `roast` the two are
+identical: rebuilding UCSC's hg38 multiz5way with their recipe reproduces their
+published alignment byte for byte.
 
-So for those three programs the unused-block change is not merely correct where
-it overlaps — it is the *only* change. Two programs fall outside that evidence:
-`tba`, which UCSC does not use in their multiz builds, and `multic`, which they
-do not ship at all.
+**Memory.** Since 11.3 `multiz` does not read its inputs whole. An index pass
+records each block's offset by reference sequence (about 16 bytes per block), and
+blocks are parsed only when the sweep reaches them, so memory is the index plus
+the blocks being merged. Comments in the inputs are still echoed first, in file
+order. A block that starts before its predecessor on the same reference sequence
+draws a warning: multiz assumes blocks sorted by start, and unsorted input is
+mis-merged.
 
-**If you apply that patch here, keep the `K==0` NULL guard.** UCSC's build drops
-it, which is safe for them because they ship no `multic` and `roast` defaults to
-`P=multiz`, so nothing ever passes a null stream. In this tree `multic` is built
-and reachable — via `tba P=multic` or `roast P=multic` — and `multic.c:72` is
-the one caller that passes `NULL`, which neither `print_part_ali_col`
-(`multi_util.c:620`) nor `mafWrite` (`maf.c:251`) checks for.
-
-This is not a theoretical edge case. Tested on three ordinary ~2 MB buckets of
-the hg38 5-way under `P=multic`:
-
-| `multic` build | Result |
-|---|---|
-| stock 2009-01-21 | runs — the reference output |
-| patch **with** the guard | identical alignment lines to stock on all three |
-| patch **without** the guard (UCSC's) | segfaults on all three — `fprintf(NULL)`, then `maf_project` fails |
-
-The guarded form is the one to use: identical to UCSC's under `multiz`,
-identical to stock under `multic`.
-
-**`all` does nothing in this build.** The flag sets `row2=0` (`multiz.c:229`),
+**`all` does nothing in this build.** The flag sets `row2=0` (`multiz.c:231`),
 which is already the initial value (`multi_util.c:24`), and every output guard
 reads `if (row2==0 || ali->components->next != NULL)`
-(`multiz.c:70,76,279,284`). The left disjunct is therefore always true and
+(`multiz.c:71,77,282,291`). The left disjunct is therefore always true and
 single-row blocks are **always** written, with or without `all`. The source
 comment at `multiz.c:3` ("make it default not to output") records the intent,
 but the code does not implement it. The same applies to `multic`
@@ -289,7 +281,13 @@ uses its own local flag and does behave as documented.
 
 **Notes**
 
-- Version 11.2 (`multiz.c:58`). `README2` describes v10.6.
+- Version 11.3 (`multiz.c:59`). `README2` describes v10.6; 11.2 is the
+  2009–2019 release.
+- Before 11.3, long blocks with many rows could overflow the 32-bit
+  dynamic-programming scores (silently misaligning the rest of the block, or
+  stopping with `Error generating edit script`), and two long insertions at the
+  same reference position could stop it with `ckalloc: request for negative
+  space`. Both are fixed: scores are 64-bit and buffer sizes are `size_t`.
 - The published default radius is `R = 10` and this build defaults to `R = 30`.
   Blanchette et al. (2004) report, in the Methods supplement ("Aligning
   Procedures"), that an evaluation by evolutionary simulation found `R = 10`
@@ -321,14 +319,16 @@ single-coverage.
 runtime. Of its two uses, `align_util.c:510` lies inside a comment block
 spanning `align_util.c:406-519`, and `align_util.c:656` is inside
 `connectionAgreement2()`, whose sole caller is `pre_yama2()`
-(`mz_preyama.c:436`) — and `pre_yama2` is never called by anything
-(`mz_preyama.c:387` is its only definition, with a prototype at
+(`mz_preyama.c:440`) — and `pre_yama2` is never called by anything
+(`mz_preyama.c:391` is its only definition, with a prototype at
 `mz_preyama.h:27`). `multic` itself calls `pre_yama()` (`multic.c:72`).
 
 **Notes**
 
 - `multic` does **not** accept `L=` or `S=`.
-- Version 12.1 (`multic.c:35`). `README2` describes v11.1.
+- Version 12.2 (`multic.c:35`). `README2` describes v11.1. 12.2 shares the
+  dynamic-programming fixes of multiz 11.3 (64-bit scores, `size_t` buffer
+  sizes) and passes both unused streams to `pre_yama()` as `NULL`.
 
 ---
 
@@ -354,11 +354,11 @@ maf_project file.maf reference [from to] [filename-for-other-mafs] [species-guid
 Handles species with more than one contig.
 
 **The optional arguments are positional, not freely combinable.** Parsing is
-driven by the argument count (`maf_project.c:574-608`), with these consequences:
+driven by the argument count (`maf_project.c:752-786`), with these consequences:
 
 - `maf_project f.maf ref 0 1000 other.maf` does **not** do what it looks like.
   With five arguments the last one is taken as a *species tree*
-  (`maf_project.c:582`), so `other.maf` is parsed as a species list, no
+  (`maf_project.c:760`), so `other.maf` is parsed as a species list, no
   other-mafs file is written, and the output is filtered to a species named
   `other.maf` — an empty projection, with no warning.
 - `filename-for-other-mafs` and `species-guide-tree` can never be given
@@ -366,7 +366,7 @@ driven by the argument count (`maf_project.c:574-608`), with these consequences:
 - `from to` together with both trailing options is likewise rejected.
 
 In practice, use at most one of the three optional trailing arguments at a
-time. `nohead` is stripped first (`maf_project.c:574`) and so may always be
+time. `nohead` is stripped first (`maf_project.c:752`) and so may always be
 last.
 
 Projecting does not bias the alignment toward the chosen species — it is still
@@ -375,7 +375,15 @@ the same threaded blockset are guaranteed consistent: if position *x* of *X*
 aligns to position *y* of *Y* in one projection and to position *z* in another,
 then *y* = *z*.
 
-Version 12 (`maf_project.c:29`). `README2` describes v10.
+**Memory.** The form roast uses — an other-mafs file and no species list — is
+streamed since version 13: one pass indexes the blocks (about 24 bytes each) and
+writes those not naming the target to the other-mafs file, then each reference
+sequence's blocks are sorted in the index and re-read one at a time, fused with
+an abutting predecessor, and written. Output is identical to the in-memory path,
+which every other form still uses. On the hg38 multiz5way chrX bucket this is the
+difference between 677 MB and 13 MB at the final projection.
+
+Version 13 (`maf_project.c:29`). `README2` describes v10.
 
 ### maf_order
 

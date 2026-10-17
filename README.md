@@ -31,7 +31,8 @@ make
 ```
 
 That is the whole build — no configure step, no external libraries. It produces
-18 executables in the source directory.
+18 executables in the source directory, and works with current compilers
+(gcc 15, whose default is C23).
 
 The Makefile hardcodes `CC = gcc` (`Makefile:1`), so on a system without `gcc`
 override it: `make CC=cc`. `make install` additionally needs `install` and
@@ -47,13 +48,9 @@ The `install` target has no prerequisites (`Makefile:77`), so it will not build
 for you — run `make` first, as above. `INSTALLDIR` defaults to
 `/depot/apps/$(ARCH)/bin`, a Miller Lab convention.
 
-The Makefile compiles at `-O0` with `-Wall -Wextra`. If you are aligning
-anything large, raise the optimisation level — these are
-compute-bound programs:
-
-```bash
-make CFLAGS="-Wall -Wextra -O2"
-```
+The Makefile compiles at `-O2` with `-Wall -Wextra`. Until 11.3 it used
+`-O0`, which made a roast run about twice as slow. For a debug build, override
+it: `make CFLAGS="-Wall -Wextra -O0 -ggdb3"`.
 
 ## Dependencies
 
@@ -111,19 +108,55 @@ Full option reference: [docs/programs.md](docs/programs.md).
 
 ## Provenance and changes from upstream
 
-This is a functionally equivalent copy of the multiz/TBA tarball posted at the
-Miller Lab website on **21 January 2009**
-(`http://www.bx.psu.edu/miller_lab`). UCSC runs that same release in
-production, installed as `multiz.2009-01-21_patched`. Their `_patched` suffix
-marks local modifications. The patch is unpublished, but has been reconstructed
-and verified against their binary: the substantive change is in `multiz`'s
-unused-block handling — see [`multiz`](docs/programs.md#multiz). No later
-upstream version appears anywhere in their build notes.
+This repository started as a copy of the multiz/TBA tarball posted at the
+Miller Lab website on **21 January 2009** (`http://www.bx.psu.edu/miller_lab`),
+released here in 2019 as `20190527` (multiz 11.2). UCSC runs that same release
+in production, installed as `multiz.2009-01-21_patched`, with one change: a fix
+by **Minmei Hou**, multiz's maintainer in the Miller Lab, which she sent to UCSC
+in January 2014. Its source was never published; it was reconstructed from
+UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
+[`multiz`](docs/programs.md#multiz).
 
-Changes made here:
+### Changes in 11.3
+
+Alignment output changes only where 11.2 was wrong:
+
+- **Recovered segments.** `multiz` no longer drops the pieces of an overlap it
+  cannot align; they go to the unused-block files, which roast re-merges
+  (Minmei Hou's 2014 fix, #14). With it, rebuilding UCSC's hg38 multiz5way with
+  UCSC's recipe matches their published alignment byte for byte.
+- **Long blocks with many rows** are aligned correctly. The dynamic-programming
+  scores overflowed 32 bits, which silently misaligned the rest of the block or
+  stopped with `Error generating edit script` (#19).
+- **Long shared insertions** no longer stop multiz with `ckalloc: request for
+  negative space` (#15).
+- **MAF blocks run together** without a blank line are read as separate blocks,
+  instead of being merged or failing with `inconsistent row size` (#17).
+
+Other changes:
+
+- **Memory.** `multiz`, and `maf_project` as roast calls it, stream their input
+  instead of reading it whole: a roast run's peak memory drops from hundreds of
+  MB to a few MB, with identical output (#24).
+- **Speed.** Built at `-O2` by default, about twice as fast as the old `-O0`
+  default (#22).
+- **MAF files without a header line**, such as `lastz --format=maf-` output, are
+  accepted (#21).
+- **Temporary files** go to `$TMPDIR` when it is set, and `tba` accepts `T=`
+  like `roast` (#18).
+- **Robustness.** `roast` and `tba` no longer overflow fixed buffers on long
+  command lines (#16), and `formNameList` allocates enough memory (#23).
+- **Builds** with current compilers: C23 `bool`, `-fno-common`, strict ISO C
+  (#20).
+
+Program versions: `multiz` 11.3, `multic` 12.2, `maf_project` 13, `roast` 4,
+`tba` 13; `single_cov2`, `pair2tb` and `maf2lav` 12, `maf2fasta` 4, `mafFind` 2,
+`maf_order` 11. Programs whose behaviour did not change keep their numbers.
+
+### Changes in the 2019 release
 
 - **`lastz` replaces `blastz`.** `blastzWrapper` now executes `lastz`
-  (`blastzWrapper.c:14`). Blastz has been deprecated for well over a decade and
+  (`blastzWrapper.c:15`). Blastz has been deprecated for well over a decade and
   lastz is a drop-in replacement. The program keeps its original name so that
   existing scripts and the rest of the suite continue to work. Lastz accepts the
   blastz option letters this suite passes (`Y=`, `H=`, `Q=`), which is what
@@ -131,10 +164,11 @@ Changes made here:
   build notes invoke a `lastzWrapper` — though they publish no source for it.
 - Syntax corrections to silence compiler warnings; removal of obsolete `rcsid`
   tags. No behavioural change.
-- Addition of the MIT license and this documentation.
+- Addition of the MIT license.
 
-The motivation for the repository is to provide an equivalent of that tarball
-that modern package managers can install.
+The original motivation for the repository was to provide an equivalent of that
+tarball that modern package managers can install. Since 11.3 it is also where
+multiz is maintained.
 
 The historical `README` and `README2` are preserved verbatim in
 [docs/historical/](docs/historical/). They are a changelog rather than a
