@@ -137,7 +137,7 @@ Other changes:
 
 - **Memory.** `multiz`, and `maf_project` as roast calls it, stream their input
   instead of reading it whole: a roast run's peak memory drops from hundreds of
-  MB to a few MB, with identical output (#24).
+  MiB to a few MiB, with identical output (#24).
 - **Speed.** Built at `-O2` by default, about twice as fast as the old `-O0`
   default (#22).
 - **MAF files without a header line**, such as `lastz --format=maf-` output, are
