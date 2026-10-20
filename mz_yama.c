@@ -40,6 +40,22 @@ typedef struct DP {
 }
 dp_node;
 
+/* Column counts.  Every per-cell sum in yama() runs over all K*L row pairs, but a
+*  row of A enters a sum only through its symbol and whether it and the row
+*  before it are dashes, and likewise a row of B.  So each sum is built from
+*  counts of those classes: the gap sums from two 0/1 flags per row (4 classes),
+*  the substitution sum from B's symbol counts.  The A side is folded into
+*  per-row tables once, so a cell costs a few short dot products instead of
+*  O(K*L) work.  Every term is an integer, so each total is exactly the value
+*  the pair-by-pair loops produced, and the alignment is unchanged.
+*/
+#define CL(t,v) (((t)<<1)|(v))	// class of a row from two 0/1 dash flags
+
+typedef struct ROWTAB {
+    score_t Ix[4], Iy[2], Cx[4], Cy[2], Cz[4], Dx[2], Dy, Dz[2];
+}
+row_tab;
+
 // populate a column from a column of height K and a column of height L
 static void new_col(uchar *from1, int K, uchar *from2, int L, uchar *to_col) {
     //void new_col(uchar *from1, int K, uchar *from2, int L, uchar *to_col) {
@@ -54,8 +70,11 @@ static void new_col(uchar *from1, int K, uchar *from2, int L, uchar *to_col) {
 // Entry point: (documented in mz_yama.h)
 void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
           uchar ***OAL, int *OM) {
-    int i, j, k, m, m_new, n, row, col, s, t, u, v, nedit;
-    score_t C, D, I, x, y, z, diag_c, diag_d, diag_i;
+    int i, j, k, m, m_new, n, row, col, s, t, u, v, nedit, nsym, c;
+    score_t C, D, I, x, y, z, diag_c, diag_d, diag_i, Iz[4];
+    int (*gb)[4], (*vb)[2], (*cnt)[4], (*ua)[2], *hist, sym[256], sym_ix[256];
+    score_t *wA;
+    row_tab *rt;
     size_t tback_size;    // sum of band widths; can exceed INT_MAX for long insertions
     uchar **tback_row, *tback, *tbp, st, flag_d, flag_i, flag_c, node,
     *dashes, *script, **al_new;
@@ -99,6 +118,90 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
     for ( ; col <= N; ++col)
         dp[col].C = dp[col].D = dp[col].I = MININT;
 
+    /* B side: for column col, gb counts rows by (B[col-1] is '-', B[col] is
+    *  '-'), vb by B[col] alone, and hist counts each symbol.
+    */
+    for (c = 0; c < 256; ++c)
+        sym_ix[c] = -1;
+    for (nsym = 0, col = 1; col <= N; ++col)
+        for (j = 0; j < L; ++j)
+            if (sym_ix[B[col][j]] < 0) {
+                sym_ix[B[col][j]] = nsym;
+                sym[nsym++] = B[col][j];
+            }
+    gb = ckalloc((N+1)*sizeof(*gb));
+    vb = ckalloc((N+1)*sizeof(*vb));
+    hist = ckalloc((size_t)(N+1)*(nsym ? nsym : 1)*sizeof(int));
+    for (col = 1; col <= N; ++col) {
+        gb[col][0] = gb[col][1] = gb[col][2] = gb[col][3] = 0;
+        vb[col][0] = vb[col][1] = 0;
+        for (k = 0; k < nsym; ++k)
+            hist[(size_t)col*nsym + k] = 0;
+        for (j = 0; j < L; ++j) {
+            t = (col > 1 && B[col-1][j] == '-');
+            v = (B[col][j] == '-');
+            gb[col][CL(t,v)]++;
+            vb[col][v]++;
+            hist[(size_t)col*nsym + sym_ix[B[col][j]]]++;
+        }
+    }
+
+    /* A side: for row, cnt counts rows by (A[row-1] is '-', A[row] is '-'),
+    *  ua by A[row] alone.  rt holds each gap sum's A half against every B
+    *  class, and wA[row][k] is the sum over A[row] of ss[.][sym[k]].
+    */
+    cnt = ckalloc((M+1)*sizeof(*cnt));
+    ua = ckalloc((M+1)*sizeof(*ua));
+    rt = ckalloc((M+1)*sizeof(row_tab));
+    wA = ckalloc((size_t)(M+1)*(nsym ? nsym : 1)*sizeof(score_t));
+    for (t = 0; t < 2; ++t)
+        for (v = 0; v < 2; ++v)
+            Iz[CL(t,v)] = (score_t)K*GAP(1,t,1,v);
+    for (row = 1; row <= M; ++row) {
+        cnt[row][0] = cnt[row][1] = cnt[row][2] = cnt[row][3] = 0;
+        ua[row][0] = ua[row][1] = 0;
+        for (k = 0; k < nsym; ++k)
+            wA[(size_t)row*nsym + k] = 0;
+        for (i = 0; i < K; ++i) {
+            s = (row > 1 && A[row-1][i] == '-');
+            u = (A[row][i] == '-');
+            cnt[row][CL(s,u)]++;
+            ua[row][u]++;
+            for (k = 0; k < nsym; ++k)
+                wA[(size_t)row*nsym + k] += SS(A[row][i],sym[k]);
+        }
+        rt[row].Dy = 0;
+        for (t = 0; t < 2; ++t) {
+            rt[row].Dx[t] = rt[row].Dz[t] = 0;
+            rt[row].Iy[t] = rt[row].Cy[t] = 0;
+            for (v = 0; v < 2; ++v)
+                rt[row].Ix[CL(t,v)] = rt[row].Cx[CL(t,v)] = rt[row].Cz[CL(t,v)] = 0;
+        }
+        for (s = 0; s < 2; ++s)
+            for (u = 0; u < 2; ++u) {
+                n = cnt[row][CL(s,u)];
+                rt[row].Dy += (score_t)n*L*GAP(s,1,u,1);
+                for (t = 0; t < 2; ++t) {
+                    rt[row].Dx[t] += (score_t)n*GAP(s,t,u,1);
+                    rt[row].Cy[t] += (score_t)n*GAP(s,1,u,t);	// t plays v here
+                    for (v = 0; v < 2; ++v)
+                        rt[row].Cx[CL(t,v)] += (score_t)n*GAP(s,t,u,v);
+                }
+            }
+        for (s = 0; s < 2; ++s)	// I: s is A[row]'s own dash flag, u is 1
+            for (t = 0; t < 2; ++t) {
+                rt[row].Iy[t] += (score_t)ua[row][s]*GAP(s,1,1,t);	// t plays v
+                for (v = 0; v < 2; ++v)
+                    rt[row].Ix[CL(t,v)] += (score_t)ua[row][s]*GAP(s,t,1,v);
+            }
+        for (u = 0; u < 2; ++u)
+            for (t = 0; t < 2; ++t) {
+                rt[row].Dz[t] += (score_t)ua[row][u]*GAP(1,t,u,1);
+                for (v = 0; v < 2; ++v)
+                    rt[row].Cz[CL(t,v)] += (score_t)ua[row][u]*GAP(1,t,u,v);
+            }
+    }
+
     C = D = I = MININT;
     for (row = 1; row <= M; ++row) {
         tback_row[row] = tbp - LB[row];
@@ -126,21 +229,15 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                 *  of the last two edges in a path, i.e., on
                 *  the types of the last two nodes.
                 */
-                if (row < M)	// not for end-gaps
-                    for (i = 0; i < K; ++i) {
-                        s = (A[row][i] == '-');
-                        u = 1;
-                        for (j = 0; j < L; ++j) {
-                            t = (col > 1 &&
-                                 B[col-1][j] == '-');
-                            v = (B[col][j] == '-');
-                            if (col > LB[row-1]+1)
-                                x -= GAP(s,t,u,v);
-                            y -= GAP(s,1,u,v);
-                            if (col > LB[row]+1)
-                                z -= GAP(1,t,u,v);
-                        }
+                if (row < M) {	// not for end-gaps
+                    for (k = 0; k < 4; ++k) {
+                        if (col > LB[row-1]+1)
+                            x -= gb[col][k]*rt[row].Ix[k];
+                        if (col > LB[row]+1)
+                            z -= gb[col][k]*Iz[k];
                     }
+                    y -= vb[col][0]*rt[row].Iy[0] + vb[col][1]*rt[row].Iy[1];
+                }
                 if (x >= y && x >= z) {
                     /* It is best to precede the insertion
                     *  edge with a substitution edge, i.e.,
@@ -161,9 +258,7 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                 /* Each of n non-dashes in the inserted column
                 * is aligned to K dashes.
                 */
-                for (j = n = 0; j < L; ++j)
-                    if (B[col][j] != '-')
-                        ++n;
+                n = vb[col][0];	// non-dashes in the inserted column
                 I -= n*K*gap_extend;
 
             } else {
@@ -176,22 +271,16 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                 x = diag_c;
                 y = diag_d;
                 z = diag_i;
-                if (col > 1)	// no gap-open penalty at start
-                    for (i = 0; i < K; ++i) {
-                        s = (row > 1 && A[row-1][i] == '-');
-                        u = (A[row][i] == '-');
-                        for (j = 0; j < L; ++j) {
-                            t = (B[col-1][j] == '-');
-                            v = (B[col][j] == '-');
-                            if (row > 1 &&
-                                    col > LB[row-2] + 1)
-                                x -= GAP(s,t,u,v);
-                            if (row > 1)
-                                y -= GAP(s,1,u,v);
-                            if (col > LB[row-1] + 1)
-                                z -= GAP(1,t,u,v);
-                        }
+                if (col > 1) {	// no gap-open penalty at start
+                    for (k = 0; k < 4; ++k) {
+                        if (row > 1 && col > LB[row-2] + 1)
+                            x -= gb[col][k]*rt[row].Cx[k];
+                        if (col > LB[row-1] + 1)
+                            z -= gb[col][k]*rt[row].Cz[k];
                     }
+                    if (row > 1)
+                        y -= vb[col][0]*rt[row].Cy[0] + vb[col][1]*rt[row].Cy[1];
+                }
                 if (x >= y && x >= z) {
                     C = x;
                     flag_c = FLAG_C;
@@ -202,9 +291,9 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                     C = z;
                     flag_c = FLAG_I;
                 }
-                for (i = 0; i < K; ++i)
-                    for (j = 0; j < L; ++j)
-                        C += SS(A[row][i],B[col][j]);
+                for (k = 0; k < nsym; ++k)
+                    if ((n = hist[(size_t)col*nsym + k]) != 0)
+                        C += n*wA[(size_t)row*nsym + k];
             } else {
                 C = MININT;
                 flag_c = 0;
@@ -214,21 +303,15 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
             x = dp[col].C;
             y = dp[col].D;
             z = dp[col].I;
-            if (0 < col && col < N)	// not for end-gaps
-                for (i = 0; i < K; ++i) {
-                    s = (row > 1 && A[row-1][i] == '-');
-                    u = (A[row][i] == '-');
-                    v = 1;
-                    for (j = 0; j < L; ++j) {
-                        t = B[col][j] == '-';
-                        if (row > 1 && col > LB[row-2])
-                            x -= GAP(s,t,u,v);
-                        if (row > 1)
-                            y -= GAP(s,1,u,v);
-                        if (col > LB[row-1])
-                            z -= GAP(1,t,u,v);
-                    }
-                }
+            if (0 < col && col < N) {	// not for end-gaps
+                // here v is 1 and t is B[col]'s own dash flag
+                if (row > 1 && col > LB[row-2])
+                    x -= vb[col][0]*rt[row].Dx[0] + vb[col][1]*rt[row].Dx[1];
+                if (row > 1)
+                    y -= rt[row].Dy;
+                if (col > LB[row-1])
+                    z -= vb[col][0]*rt[row].Dz[0] + vb[col][1]*rt[row].Dz[1];
+            }
             if (x >= y && x >= z) {
                 D = x;
                 flag_d = FLAG_C;
@@ -242,9 +325,7 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
             // Each of n non-dashes in the deleted column
             // is aligned to L dashes.
 
-            for (j = n = 0; j < K; ++j)
-                if (A[row][j] != '-')
-                    ++n;
+            n = ua[row][0];	// non-dashes in the deleted column
             D -= n*L*gap_extend;
 
             // complete processing of the grid point (row,col)
@@ -318,6 +399,13 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                i, j, j, M, N, m_new);
     *OAL = al_new;
 
+    free(gb);
+    free(vb);
+    free(hist);
+    free(cnt);
+    free(ua);
+    free(rt);
+    free(wA);
     free(tback_row);
     free(tback);
     free(dp);
