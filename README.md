@@ -117,6 +117,18 @@ in January 2014. Its source was never published; it was reconstructed from
 UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 [`multiz`](docs/programs.md#multiz).
 
+### Changes in 11.4
+
+- **Faster alignment of deep blocks.** The dynamic-programming step summed its
+  gap and substitution scores over every pair of rows in every cell; it now
+  builds each sum from per-column counts, which gives exactly the same totals
+  (#28). Output is unchanged. On a 216-genome roast, one deep merge goes from
+  981 s to 29 s and a whole 4.1 Mb piece from 7.3 h to 1.1 h; UCSC's hg38
+  multiz5way still matches byte for byte.
+
+Program versions: `multiz` 11.4, `multic` 12.3 and `tba` 14 (they share the
+dynamic-programming code); the others are unchanged from 11.3.
+
 ### Changes in 11.3
 
 Alignment output changes only where 11.2 was wrong:

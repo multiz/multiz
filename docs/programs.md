@@ -281,7 +281,7 @@ uses its own local flag and does behave as documented.
 
 **Notes**
 
-- Version 11.3 (`multiz.c:59`). `README2` describes v10.6; 11.2 is the
+- Version 11.4 (`multiz.c:59`). `README2` describes v10.6; 11.2 is the
   2009–2019 release.
 - Before 11.3, long blocks with many rows could overflow the 32-bit
   dynamic-programming scores (silently misaligning the rest of the block, or
