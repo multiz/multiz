@@ -123,7 +123,8 @@ UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
   gap and substitution scores over every pair of rows in every cell; it now
   builds each sum from per-column counts, which gives exactly the same totals
   (#28). Output is unchanged. On a 216-genome roast, one deep merge goes from
-  981 s to 29 s and a whole 4.1 Mb piece from 7.3 h to 1.1 h; UCSC's hg38
+  981 s to 29 s and a whole 4.4 Mb piece from 3.9 h to 0.80 h (medians of
+  three interleaved runs per release on one host); UCSC's hg38
   multiz5way still matches byte for byte.
 
 Program versions: `multiz` 11.4, `multic` 12.3 and `tba` 14 (they share the
