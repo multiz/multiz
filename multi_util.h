@@ -66,7 +66,7 @@ struct mafAli **mafArray(struct mafAli *a, int *nali);
 void order_rows_species(struct mafAli **a, struct mafComp **location, char **species, int nspecies);
 
 // keep alignment starting from position beg on reference
-struct mafAli* keep_ali(struct mafAli* ali, int beg);
+struct mafAli* keep_ali(struct mafAli* ali, maf_pos_t beg);
 void mz_lazy_count(int kind);
 
 // print part of an alignment ali from beg to end which are
@@ -76,10 +76,10 @@ struct mafAli* make_part_ali_col(struct mafAli* ali, int cbeg, int cend);
 
 //  print part of an alignment ali from beg to end which are
 //  on the first component, not col number, starts at 0.
-int print_part_ali(struct mafAli* ali, int beg, int end, FILE* fp);
+int print_part_ali(struct mafAli* ali, maf_pos_t beg, maf_pos_t end, FILE* fp);
 
 // locate column of struct mafAli with a given position in sequence 1
-int mafPos2Col(struct mafComp *c, int pos, int textSize);
+int mafPos2Col(struct mafComp *c, maf_pos_t pos, int textSize);
 
 // form a maf from a run of consecutive columns of a given maf
 struct mafAli *mafSlice(struct mafAli *a, int start_col, int beyond_col);
@@ -92,33 +92,33 @@ struct mafAli *mafSlice(struct mafAli *a, int start_col, int beyond_col);
 
 // flush output-list entries that start before a specified position
 //struct mafAli *mafFlush(struct mafAli *output_list, int pos, FILE* fp);
-struct mafAli *mafFlush(struct mafAli *output_list, int pos);
+struct mafAli *mafFlush(struct mafAli *output_list, maf_pos_t pos);
 
 // insert an alignment into the output list, sorting by components->start
 struct mafAli *mafInsert(struct mafAli *output_list, struct mafAli *a);
 
 void insert_ali(struct mafAli** ali_head, struct mafAli* ali);
 int compar_ali_top_start(const void* a, const void* b);
-int change_neg_pos(struct mafComp* comp, int pos);
+maf_pos_t change_neg_pos(struct mafComp* comp, maf_pos_t pos);
 
 // currently break_ali cut ali with two rows
 // bp is on top component maf position, ali2 is already allocated
-void break_ali(struct mafAli* ali, int bp, struct mafAli* ali2);
+void break_ali(struct mafAli* ali, maf_pos_t bp, struct mafAli* ali2);
 
 struct mafAli* retrieve_first(struct mafAli** head);
 void seperate_cp_wk(struct mafAli** cp_list, struct mafAli** wk_list, char* chr);
 
-int colPos2Maf_after(struct mafComp* comp, int col);
-int colPos2Maf_before(struct mafComp* comp, int col);
+maf_pos_t colPos2Maf_after(struct mafComp* comp, int col);
+maf_pos_t colPos2Maf_before(struct mafComp* comp, int col);
 
 int test_ali(struct mafAli* ali);
 void parseSrcName(char* srcName, char* name, char* src);
 void parseSrcName2(struct mafComp*);
 
-int overlap(int beg1, int end1, int beg2, int end2);
+int overlap(maf_pos_t beg1, maf_pos_t end1, maf_pos_t beg2, maf_pos_t end2);
 void print_ali_list(struct mafAli* root, FILE* fpw);
 
-int mafPos2Col_v2(struct mafComp *c, int pos);
+int mafPos2Col_v2(struct mafComp *c, maf_pos_t pos);
 
 //void mark_uAli(struct uAli* A, int beg, int end);
 
@@ -130,6 +130,6 @@ int mafPos2Col_v2(struct mafComp *c, int pos);
 
 int compute_ss(struct mafAli* ali, int cbeg, int cend);
 
-int y_intercept(struct mafAli* pw, int x0);
+maf_pos_t y_intercept(struct mafAli* pw, maf_pos_t x0);
 
 #endif

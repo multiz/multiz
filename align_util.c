@@ -31,7 +31,8 @@ struct uAli* ali2uAli(struct mafAli* ali) {
     wrapper->indexes = NULL;
     wrapper->oali = NULL;
     wrapper->flipped = 'n';
-    wrapper->index = wrapper->start = wrapper->end = wrapper->cbeg = wrapper->cend = -1;
+    wrapper->index = wrapper->cbeg = wrapper->cend = -1;
+    wrapper->start = wrapper->end = -1;
 
     return wrapper;
 }
@@ -80,11 +81,12 @@ void rc_uAli(struct uAli *a) {
     a->flipped = ( a->flipped == 'n' ? 'y' : 'n' );
 }
 
-void mark_uAli(struct uAli* A, int Beg, int End, struct mafAli* nalilist) {
+void mark_uAli(struct uAli* A, maf_pos_t Beg, maf_pos_t End, struct mafAli* nalilist) {
     struct mafComp* comp=A->ali->components, *ncomp;
     char* used=A->usedArr;
     struct mafAli* nali;
-    int cbeg, cend, i, nbeg, nend, beg, end, nstart, ustart, uend, cond;
+    int cbeg, cend, i, cond;
+    maf_pos_t nbeg, nend, beg, end, nstart, ustart, uend;
 
     for ( nali=nalilist; nali!=NULL; nali=nali->next) {
         cond = 0;
@@ -232,8 +234,8 @@ struct sortuAlis* do_sortuAlis(struct uAli** uAliArr, int totalSize, char* name,
         fatalf("Inconsistent sizes k: %d and subSize: %d\n", k, subSize);
     sort_uAli_contigs(suAlis->sortuAliArr, subSize);
 
-    suAlis->fronts = (int*)malloc(subSize*sizeof(int));
-    suAlis->ends   = (int*)malloc(subSize*sizeof(int));
+    suAlis->fronts = (maf_pos_t*)malloc(subSize*sizeof(maf_pos_t));
+    suAlis->ends   = (maf_pos_t*)malloc(subSize*sizeof(maf_pos_t));
     for (k=0; k<subSize; k++) {
         suAlis->fronts[k] = suAlis->sortuAliArr[k]->start;
         suAlis->ends[k] = suAlis->sortuAliArr[k]->end;
@@ -522,9 +524,10 @@ int connectionAgreement2(struct mafAli* leftali, struct mafAli* rightali, int cb
     struct mafComp *compA, *compB, *compa=NULL, *compb=NULL;
     char *topspecies, *botspecies;
     struct position a, b, c, d;
-    int i, j, k, pairK=pws->pairK, marker1, marker2, overbeg, overend, cbeg, cend, beg1, end1, beg2, end2, leftK, rightK, tmp;
+    int i, j, k, pairK=pws->pairK, marker1, marker2, cbeg, cend, leftK, rightK, tmp;
+    maf_pos_t overbeg, overend, beg1, end1, beg2, end2;
     int *existConnections, expectConnection, existConnection=0;
-    int ab_mid_y, cd_mid_y, overmid;
+    maf_pos_t ab_mid_y, cd_mid_y, overmid;
 
     if ( leftali->components->strand == '-' )
         fatalf("left top component is not positive orientation: %s\n", leftali->components->name);
@@ -625,8 +628,9 @@ int connectionAgreement2(struct mafAli* leftali, struct mafAli* rightali, int cb
                     overbeg = ( a.x > c.x ? a.x : c.x );
                     overend = ( b.x < d.x ? b.x : d.x );
                     overmid = (overbeg + overend)/2;
-                    ab_mid_y = b.y - (b.x - overmid)*(b.y - a.y)/(double)(b.x - a.x);
-                    cd_mid_y = d.y - (d.x - overmid)*(d.y - c.y)/(double)(d.x - c.x);
+                    // truncated toward zero, as the int assignment did before 11.6
+                    ab_mid_y = (maf_pos_t)(b.y - (b.x - overmid)*(b.y - a.y)/(double)(b.x - a.x));
+                    cd_mid_y = (maf_pos_t)(d.y - (d.x - overmid)*(d.y - c.y)/(double)(d.x - c.x));
                     if ( ab_mid_y - cd_mid_y >= -SAME_CONNECTION && ab_mid_y - cd_mid_y <= SAME_CONNECTION )
                         existConnections[i] = 1;
                 }
@@ -664,7 +668,8 @@ int mark_infered_pws(struct mafAli* nlist, struct pwuAliFiles* pws) {
     struct mafAli *nali, *pw;
     struct mafComp *compA, *compB, *compa=NULL, *compb=NULL;
     char *topspecies, *botspecies;
-    int i, j, k, m, line1, line2, overbeg, overend, cbeg, cend, beg1, end1, beg2, end2;
+    int i, j, k, m, line1, line2, cbeg, cend;
+    maf_pos_t overbeg, overend, beg1, end1, beg2, end2;
 
     for (nali=nlist; nali!=NULL; nali=nali->next) {
         for (compA=nali->components; compA!=NULL; compA=compA->next) {
@@ -757,10 +762,11 @@ int mark_infered_pws(struct mafAli* nlist, struct pwuAliFiles* pws) {
     return 0;
 }
 
-int retrieve_exemplar(struct sortuAlis* sAli, int length, char* src, int index, int pos, int limit) {
-    int* starts, *ends;
+int retrieve_exemplar(struct sortuAlis* sAli, int length, char* src, int index, maf_pos_t pos, maf_pos_t limit) {
+    maf_pos_t* starts, *ends;
     struct mafComp* comp;
-    int remain, max_remain, max_index, exist;
+    int max_index, exist;
+    maf_pos_t remain, max_remain;
 
     starts = sAli->fronts;
     ends = sAli->ends;
@@ -803,9 +809,10 @@ int retrieve_exemplar(struct sortuAlis* sAli, int length, char* src, int index, 
 
 // aliArr is sorted according to the species row's starting point
 // assuming sAli has all positions
-struct uAli* Find_Exemplar(struct sortuAlis* sAli, char* src, int beg, int end, int* startIndex) {
+struct uAli* Find_Exemplar(struct sortuAlis* sAli, char* src, maf_pos_t beg, maf_pos_t end, int* startIndex) {
     struct uAli *puAli, *head, *tail;
-    int index=*startIndex, pos=beg, currEnd, max_index=-1, length;
+    int index=*startIndex, max_index=-1, length;
+    maf_pos_t pos=beg, currEnd;
 
     length = sAli->sortuAliArrSize;
     head = tail = NULL;

@@ -168,7 +168,7 @@ struct mafAli *mafStreamNext(struct mafStream *s) {
         return NULL;
     a = mafIndexRead(s->ix, s->ix->chrBlk[s->chr][s->pos++]);
     if (a->components->start < s->lastStart)
-        fprintf(stderr, "warning: %s is not sorted: %s block at %d follows one at %d; "
+        fprintf(stderr, "warning: %s is not sorted: %s block at %lld follows one at %lld; "
                 "multiz assumes blocks sorted by start and will mis-merge them\n",
                 s->ix->mf->fileName, a->components->src, a->components->start, s->lastStart);
     s->lastStart = a->components->start;

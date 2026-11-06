@@ -60,7 +60,8 @@ extern int SML_BREAK_WID;
 
 int multiz(struct mafStream* wk_list1, struct mafStream* wk_list2, FILE* fpw1, FILE* fpw2, int v) {
     struct mafAli *a1, *a2, *new_ali;
-    int beg1, end1, beg2, end2, beg, end, col_beg, col_end;
+    maf_pos_t beg1, end1, beg2, end2, beg, end;
+    int col_beg, col_end;
     int test=0;
 
     a1 = mafStreamNext(wk_list1);

@@ -178,7 +178,8 @@ static void fuse(struct mafAli *a, struct mafAli *b) {
 static int fuseLeft(struct mafAli *a, struct mafAli *b, struct mafAli *orph) {
     struct mafComp *c, *d, *w, *xw;
     struct mafAli *wedge, *xwedge;
-    int sep, compEnd, abut;
+    int abut;
+    maf_pos_t sep, compEnd;  // sep can be a whole chromosome apart
 
     // check each row of a for a row in b from the same species
     abut = 1;
@@ -275,7 +276,8 @@ static int fuseLeft(struct mafAli *a, struct mafAli *b, struct mafAli *orph) {
 static int fuseRight(struct mafAli *a, struct mafAli *b, struct mafAli *orph) {
     struct mafComp *c, *d, *w, *xw;
     struct mafAli *wedge, *xwedge;
-    int sep, compStart, abut;
+    int abut;
+    maf_pos_t sep, compStart;
 
     // check each row of b for a row in a from the same species
     abut = 1;
@@ -559,7 +561,7 @@ static struct name_list *get_names(char *target, char *tree_spec) {
    order as the in-memory path. Memory is about 24 bytes per block plus the block being fused. */
 
 static long *ps_off;
-static int *ps_key;
+static maf_pos_t *ps_key;
 
 static int ps_cmp(const void *x, const void *y) {
     int a = *(const int *)x, b = *(const int *)y;
@@ -579,7 +581,7 @@ static struct mafAli *ps_read(struct mafFile *mf, int blk) {
     return a;
 }
 
-static void project_stream(char *fileName, char *target, FILE *fp, int beg, int end) {
+static void project_stream(char *fileName, char *target, FILE *fp, maf_pos_t beg, maf_pos_t end) {
     struct mafFile *mf = mafOpen(fileName, 0);
     struct mafAli *a, *A, *cur = NULL;
     struct mafComp *c, *b;
@@ -589,7 +591,8 @@ static void project_stream(char *fileName, char *target, FILE *fp, int beg, int 
     ssize_t len;
     long here;
     int nb = 0, capb = 0, nchr = 0, capc = 0, *chr = NULL, inblock = 0, matched = 0;
-    int start, size, srcSize, i, k, n, nkeep, *list, *keep, *other;
+    int i, k, n, nkeep, *list, *keep, *other;
+    maf_pos_t start, size, srcSize;
 
     if (mf->pending != NULL) {          // no header: index from the top, as in maf_stream.c
         free(mf->pending);
@@ -607,7 +610,7 @@ static void project_stream(char *fileName, char *target, FILE *fp, int beg, int 
             if (nb == capb) {
                 capb = capb ? 2 * capb : 1024;
                 ps_off = realloc(ps_off, capb * sizeof(long));
-                ps_key = realloc(ps_key, capb * sizeof(int));
+                ps_key = realloc(ps_key, capb * sizeof(maf_pos_t));
                 chr = realloc(chr, capb * sizeof(int));
                 if (ps_off == NULL || ps_key == NULL || chr == NULL)
                     fatal("out of memory indexing maf");
@@ -620,7 +623,7 @@ static void project_stream(char *fileName, char *target, FILE *fp, int beg, int 
         } else if (line[0] == '\n' || line[0] == ' ')
             inblock = 0;
         else if (inblock && !matched && line[0] == 's') {
-            if (sscanf(line, "s %499s %d %d %c %d", src, &start, &size, &strand, &srcSize) != 5)
+            if (sscanf(line, "s %499s %lld %lld %c %lld", src, &start, &size, &strand, &srcSize) != 5)
                 fatalf("bad component in file %s:\n%s", fileName, line);
             dot = strchr(src, '.');
             if (dot != NULL)
@@ -743,7 +746,8 @@ int main(int argc, char **argv) {
 #endif
 
     struct mafComp *c, *b, **location;
-    int i, nali, beg, end, nspecies, orig_argc = argc;
+    int i, nali, nspecies, orig_argc = argc;
+    maf_pos_t beg, end;
     FILE *fp;
     char cmd[500], *target, **species, *x;
     struct name_list *n=NULL, *m=NULL;
@@ -774,8 +778,8 @@ int main(int argc, char **argv) {
         location = NULL;
         species = NULL;
     }
-    if (argc == 5 && (beg = atoi(argv[3])) >= 0 &&
-            (end = atoi(argv[4])) > beg)
+    if (argc == 5 && (beg = atoll(argv[3])) >= 0 &&
+            (end = atoll(argv[4])) > beg)
         argc = 3;
     else
         beg = end = -1;

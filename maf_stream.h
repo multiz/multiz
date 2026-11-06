@@ -22,7 +22,7 @@ struct mafIndex {
 struct mafStream {
     struct mafIndex *ix;
     int chr, pos;
-    int lastStart;          // for the sort-order check
+    maf_pos_t lastStart;    // for the sort-order check
 };
 
 struct mafIndex *mafIndexBuild(char *fileName, int verbose);
