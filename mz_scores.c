@@ -122,17 +122,11 @@ void init_scores85() {
     gap_extend = GAP_EXTEND85;
 }
 
-double mafScoreRange(struct mafAli *maf, int start, int size) {
+static double mafScoreRange_pairs(struct mafAli *maf, int start, int size) {
     uchar ai, ar, bi, br;
     int i;
     double score;
     struct mafComp *c1, *c2;
-
-    if (start < 0 || size <= 0 || start+size > maf->textSize)
-        fatalf("mafScoreRange: start = %d, size = %d, textSize = %d\n",
-               start, size, maf->textSize);
-    if (ss == NULL)
-        fatal("mafScoreRange: scores not initialized");
 
     score = 0.0;
     for (i = start; i < start+size; ++i) {
@@ -152,3 +146,78 @@ double mafScoreRange(struct mafAli *maf, int start, int size) {
     return score;
 }
 
+/* Counting version: per column, count rows per symbol and per (prev dash, cur dash) class. */
+static double mafScoreRange_counts(struct mafAli *maf, int start, int size) {
+    long long cnt[256], g[4], total = 0;
+    int seen[256], nseen, i, a, b, p, q;
+    struct mafComp *c;
+
+    for (a = 0; a < 256; ++a) cnt[a] = 0;
+    for (i = start; i < start+size; ++i) {
+        nseen = 0;
+        g[0] = g[1] = g[2] = g[3] = 0;
+        for (c = maf->components; c != NULL; c = c->next) {
+            uchar br = c->text[i];
+            if (cnt[br]++ == 0) seen[nseen++] = br;
+            if (i > 0)
+                g[((c->text[i-1] == '-') << 1) | (br == '-')]++;
+        }
+        for (a = 0; a < nseen; ++a) {
+            int sa = seen[a];
+            total += cnt[sa]*(cnt[sa]-1)/2 * (long long)SS(sa,sa);
+            for (b = a+1; b < nseen; ++b)
+                total += cnt[sa]*cnt[seen[b]] * (long long)SS(sa,seen[b]);
+        }
+        if (i > 0)
+            for (p = 0; p < 4; ++p) {
+                if (g[p] == 0) continue;
+                /* class p = (prev dash, cur dash) for row 1, q for row 2; GAP(s,t,u,v): s,t prev, u,v cur */
+                total -= g[p]*(g[p]-1)/2 * (long long)GAP((p>>1), (p>>1), (p&1), (p&1));
+                for (q = p+1; q < 4; ++q)
+                    total -= g[p]*g[q] * (long long)GAP((p>>1), (q>>1), (p&1), (q&1));
+            }
+        for (a = 0; a < nseen; ++a) cnt[seen[a]] = 0;
+    }
+    return (double)total;
+}
+
+/* The counting version sums unordered row pairs, which equals the pair loop only when the substitution and
+   gap tables are symmetric under swapping the two rows. Checked once per table; an asymmetric table falls back to
+   the pair loop, so the result never changes. */
+static int pairs_needed(void) {
+    static int **checked = NULL;
+    static int need = 0;
+    int a, b, s, t, u, v;
+    if (checked == ss)
+        return need;
+    need = 0;
+    for (a = 0; a < NACHARS && !need; ++a)
+        for (b = 0; b < a; ++b)
+            if (ss[a][b] != ss[b][a]) { need = 1; break; }
+    for (s = 0; s < 2 && !need; ++s)
+        for (t = 0; t < 2; ++t)
+            for (u = 0; u < 2; ++u)
+                for (v = 0; v < 2; ++v)
+                    if (GAP(s,t,u,v) != GAP(t,s,v,u)) need = 1;
+    checked = ss;
+    return need;
+}
+
+double mafScoreRange(struct mafAli *maf, int start, int size) {
+    double s;
+    if (start < 0 || size <= 0 || start+size > maf->textSize)
+        fatalf("mafScoreRange: start = %d, size = %d, textSize = %d\n",
+               start, size, maf->textSize);
+    if (ss == NULL)
+        fatal("mafScoreRange: scores not initialized");
+#ifdef MSR_CHECK
+    {
+        double s0 = mafScoreRange_pairs(maf, start, size);
+        s = mafScoreRange_counts(maf, start, size);
+        if (s != s0) fatalf("MSR MISMATCH %.1f %.1f start=%d size=%d", s0, s, start, size);
+    }
+#else
+    s = pairs_needed() ? mafScoreRange_pairs(maf, start, size) : mafScoreRange_counts(maf, start, size);
+#endif
+    return s;
+}
