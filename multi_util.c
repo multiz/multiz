@@ -120,8 +120,8 @@ char *seq_ident(char *filename) {
 }
 
 static int compar(const void *a, const void *b) {
-    return (*((struct mafAli **)a))->components->start -
-           (*((struct mafAli **)b))->components->start;
+    return maf_pos_cmp((*((struct mafAli **)a))->components->start,
+                       (*((struct mafAli **)b))->components->start);
 }
 
 struct mafAli **mafArray(struct mafAli *a, int *nali) {
@@ -734,7 +734,7 @@ void insert_ali(struct mafAli** ali_head, struct mafAli* ali) {
 }
 
 int compar_ali_top_start(const void* a, const void* b) {
-    return (*(struct mafAli**)a)->components->start - (*(struct mafAli**)b)->components->start;
+    return maf_pos_cmp((*(struct mafAli**)a)->components->start, (*(struct mafAli**)b)->components->start);
 }
 
 int change_neg_pos(struct mafComp* comp, int pos) { // pos is on comp

@@ -170,7 +170,7 @@ void print_unused_ali(struct uAli* iAli, FILE* fpw) {
 
 
 int compar_uAli_start(const void* a, const void* b) {
-    return (*((struct uAli**)a))->start - (*((struct uAli**)b))->start;
+    return maf_pos_cmp((*((struct uAli**)a))->start, (*((struct uAli**)b))->start);
 }
 
 int compar_uAli_src(const void* a, const void* b) {
