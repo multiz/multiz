@@ -7,7 +7,8 @@
 #include "maf.h"
 
 int main(int argc, char **argv) {
-    int lastEnd, plusStart, totalError;
+    int totalError;
+    maf_pos_t lastEnd, plusStart;
     struct mafFile *mf;
     struct mafAli *b;
     struct mafComp *c;
@@ -24,7 +25,7 @@ int main(int argc, char **argv) {
         ////plusStart = getPlusStart(c->strand, c->start, c->size, c->srcSize);
         plusStart = c->start;
         if ( plusStart < lastEnd + 1) {
-            printf("%s not threaded at %d ", c->src, c->start);
+            printf("%s not threaded at %lld ", c->src, c->start);
             totalError++;
         }
         lastEnd = plusStart + c->size - 1;

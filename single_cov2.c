@@ -16,13 +16,14 @@
 struct mafAli *mafOverlap(struct mafAli *a, FILE *fp) {
     struct mafAli **A, *b, *alast;
     struct mafComp *c, *d;
-    int nali, i, j, x, *min_later_beg, L, R, c_end_pos, d_end_pos, col_beg, col_end;
+    int nali, i, j, x, col_beg, col_end;
+    maf_pos_t *min_later_beg, L, R, c_end_pos, d_end_pos;
     double lost1, lost2;
 
     if (a==NULL)
         return NULL;
     A = mafArray(a, &nali);
-    min_later_beg = ckalloc(nali*sizeof(int));
+    min_later_beg = ckalloc(nali*sizeof(maf_pos_t));
 
     min_later_beg[nali-1] = A[nali-1]->components->start;
     for (i = nali-2; i >= 0; --i)
@@ -51,14 +52,14 @@ struct mafAli *mafOverlap(struct mafAli *a, FILE *fp) {
 
             if (c_end_pos >= d_end_pos) {
                 if (fp != NULL)
-                    fprintf(fp, "deleted %s:%d-%d\n",
+                    fprintf(fp, "deleted %s:%lld-%lld\n",
                             c->src, d->start, d_end_pos);
                 mafAliFree(&A[j]);
                 continue;
             }
 
             /*
-            fprintf(stderr, "overlap: L = %d, R = %d\n", L, R);
+            fprintf(stderr, "overlap: L = %lld, R = %lld\n", L, R);
             mafWrite(stderr, A[i]);
             mafWrite(stderr, A[j]);
             */
@@ -68,10 +69,10 @@ struct mafAli *mafOverlap(struct mafAli *a, FILE *fp) {
             col_end = mafPos2Col(d, R, A[j]->textSize);
             lost2 = mafScoreRange(A[j], 0, col_end+1);
 
-//fprintf(stderr, "%s:%d-%d lost1 = %g, lost2 = %g\n", c->src, L, R, lost1, lost2);
+//fprintf(stderr, "%s:%lld-%lld lost1 = %g, lost2 = %g\n", c->src, L, R, lost1, lost2);
 
             if (fp != NULL)
-                fprintf(fp, "deleting %s:%d-%d\n", c->src, L, R);
+                fprintf(fp, "deleting %s:%lld-%lld\n", c->src, L, R);
             if (lost1 <= lost2) {
                 x = A[i]->textSize;
                 b = mafSlice(A[i], 0, mafPos2Col(c, L, x));
@@ -163,7 +164,8 @@ int main(int argc, char **argv) {
     struct mafFile *mf;
     struct mafAli *a, **A;
     char* reference=NULL;
-    int i, nali, orig1, orig2, res1, res2;
+    int i, nali;
+    maf_pos_t orig1, orig2, res1, res2;  // totals over all blocks: can pass 2^31 even when no coordinate does
 
     sprintf(cmd, "single_cov2.v%d", VERSION);
     argv0 = cmd;
@@ -234,7 +236,7 @@ int main(int argc, char **argv) {
     free(A);
 
     if ( (double)(res1+res2)/(orig1+orig2) < STOP_CRITERIA )
-        fprintf(stderr, "%d bases loss out of %d\n", orig1+orig2-res1-res2, orig1+orig2);
+        fprintf(stderr, "%lld bases loss out of %lld\n", orig1+orig2-res1-res2, orig1+orig2);
     mafWriteEnd(stdout);
     return 0;
 }

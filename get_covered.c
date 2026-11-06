@@ -9,7 +9,7 @@
 
 int get_covered(struct mafAli** wk_list1, struct mafAli** wk_list2) {
     struct mafAli *a1, *a2;
-    int beg1, beg2, beg, end1, end2, end;
+    maf_pos_t beg1, beg2, beg, end1, end2, end;
 
     init_scores70();
     a1 = retrieve_first(wk_list1);
