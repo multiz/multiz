@@ -83,9 +83,10 @@ static void dfs(struct name_rec *n) {
 }
 
 // compare reference row of a block with the reference sequence
-static void check_ref(struct mafComp *c, uchar *seq, int seq_len, int ncol, int start, int iupac2n) {
+static void check_ref(struct mafComp *c, uchar *seq, maf_pos_t seq_len, int ncol, maf_pos_t start, int iupac2n) {
     char *s, x;
-    int pos, col;
+    int col;
+    maf_pos_t pos;
 
     pos = c->start - (start-1);
     s = c->text;
@@ -93,13 +94,13 @@ static void check_ref(struct mafComp *c, uchar *seq, int seq_len, int ncol, int 
     for (col = 0; col < ncol; ++col) {
         if ((x = s[col]) != '-') {
             if (pos >= seq_len)
-                fatalf("maf position %d >= fa size %d", pos, seq_len);
+                fatalf("maf position %lld >= fa size %lld", pos, seq_len);
 
             if (iupac2n && (strchr("ACGTNacgtn", seq[pos]) == NULL))
                 seq[pos] = (seq[pos] == toupper(seq[pos])) ? 'N' : 'n';
 
             if (toupper(x) != toupper(seq[pos]))
-                fatalf("ref-seq mismatch at position %d", pos);
+                fatalf("ref-seq mismatch at position %lld", pos);
             ++pos;
         }
     }
@@ -115,9 +116,9 @@ int main(int argc, char **argv) {
     char *first_comp_src = NULL, *ref_src = NULL;
     struct name_rec *names, *m, *n;
     struct edge *e;
-    int i, j, seq_len, nrow, ncol, next_pos, col, fasta = 0, BEG = 0,
-            END = INT_MAX, start, tail, srcSize, beg, end, copyback = 0,
-                    iupac2n = 0;
+    int i, nrow, fasta = 0, copyback = 0, iupac2n = 0;
+    // j and col walk positions as well as columns; ncol spans the whole reference interval
+    maf_pos_t j, ncol, next_pos, col, seq_len, BEG = 0, END = LLONG_MAX, start, tail, srcSize, beg, end;
 
     sprintf(cmd, "maf2fasta.v%d", VERSION);
     argv0 = cmd;
@@ -161,10 +162,10 @@ int main(int argc, char **argv) {
         fatal("args = refseq-file maf-file [beg end] [fasta[2]][?] [iupac2n] [refsrc=src]");
 
     if (argc == 5) {
-        BEG = MAX(0,atoi(argv[3]));
-        END = atoi(argv[4]);
+        BEG = MAX(0,atoll(argv[3]));
+        END = atoll(argv[4]);
         if (BEG > END)
-            fatalf("BEG = %d > END = %d", BEG, END);
+            fatalf("BEG = %lld > END = %lld", BEG, END);
     }
 
     sf = seq_open(argv[1]);
@@ -209,14 +210,14 @@ int main(int argc, char **argv) {
                 break;
             else {	// intersects interval next_pos..end
                 if (c->start < next_pos) {
-                    j = mafPos2Col(c, next_pos, a->textSize);
-                    a = mafSlice(a, j, a->textSize);
+                    i = mafPos2Col(c, next_pos, a->textSize);
+                    a = mafSlice(a, i, a->textSize);
                     c = a->components;
                 }
                 next_pos = c->start + c->size;
                 if (c->start + c->size > end+1) {
-                    j = mafPos2Col(c, end, a->textSize);
-                    a = mafSlice(a, 0, j+1);
+                    i = mafPos2Col(c, end, a->textSize);
+                    a = mafSlice(a, 0, i+1);
                 }
                 //do_alias(a, alias);
                 a->next = NULL;
@@ -234,13 +235,14 @@ int main(int argc, char **argv) {
 
         mafFileFree(&mf);
         // find and properly order the species names
-        nrow = ncol = 0;
+        nrow = 0;
+        ncol = 0;
         next_pos = beg;
         names = NULL;
         for (a = A; a != NULL; a = a->next) {
             c = a->components;
             if (c->start < next_pos)
-                fatalf("alignments out of order at pos %d", c->start);
+                fatalf("alignments out of order at pos %lld", c->start);
             check_ref(c, s, seq_len, a->textSize, start, iupac2n);
             ncol += (c->start - next_pos + a->textSize);
             next_pos = c->start + c->size;
@@ -336,7 +338,7 @@ int main(int argc, char **argv) {
         // print the alignment
         if (beg != 0 || end != seq_len - 1) {
             char new_name[1000];
-            sprintf(new_name, "%s:%d-%d", row_name[0], beg, end);
+            sprintf(new_name, "%s:%lld-%lld", row_name[0], beg, end);
             row_name[0] = copy_string(new_name);
         }
         if (fasta == 1) {
@@ -358,7 +360,7 @@ int main(int argc, char **argv) {
                     putchar('\n');
             }
         } else {
-            printf("%d %d\n", nrow, ncol);
+            printf("%d %lld\n", nrow, ncol);
             for (i = 0; i < nrow; ++i)
                 printf("%s\n", row_name[i]);
             for (i = 0; i < nrow; ++i) {

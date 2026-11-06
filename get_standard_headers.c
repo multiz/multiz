@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
     sf = seq_open(argv[1]);
     while (seq_read(sf)) {
         printf("%s ==>\n", sf->header);
-        printf("1-%d:+:%d\n", sf->slen, sf->slen);
+        printf("1-%lld:+:%lld\n", sf->slen, sf->slen);
     }
     seq_close(sf);
     return 0;

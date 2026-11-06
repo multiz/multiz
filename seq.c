@@ -103,8 +103,8 @@ void close_KEEP_SEQ() {
 
 
 static SEQ *seq_mask_inplace(SEQ *seq);
-static int getpair(FILE *fp, int *a, int *b);
-static char *byte_fill_range(uchar *p, int l, int c, int a, int b);
+static int getpair(FILE *fp, maf_pos_t *a, maf_pos_t *b);
+static char *byte_fill_range(uchar *p, maf_pos_t l, int c, maf_pos_t a, maf_pos_t b);
 static int ws(int c);
 static int getnwc(FILE *fp);
 static void un_getc(int c, FILE *fp);
@@ -210,18 +210,18 @@ int seq_read_fasta(SEQ *seq) {
         char_append(&sseq, 0);
         charvec_fit(&sseq);
         seq->seq = (uchar*)sseq.a;
-        seq->slen = sseq.len;
+        seq->slen = (maf_pos_t)sseq.len;
         if (seq->slen > 0) --seq->slen;  /* don't include '\0' */
     } else {
         charvec_t ssub = charvec_INIT(ckrealloc,ckfree);
-        int i;
+        maf_pos_t i;
 
         if (SEQ_FROM(seq) < 1 ||
-                (int)sseq.len < SEQ_FROM(seq) ||
+                (maf_pos_t)sseq.len < SEQ_FROM(seq) ||
                 SEQ_TO(seq) < 1 ||
-                (int)sseq.len < SEQ_TO(seq) ||
+                (maf_pos_t)sseq.len < SEQ_TO(seq) ||
                 SEQ_TO(seq) < SEQ_FROM(seq))
-            fatalf("range [%d,%d] incommensurate with sequence [%d,%d]",
+            fatalf("range [%lld,%lld] incommensurate with sequence [%d,%zu]",
                    SEQ_FROM(seq), SEQ_TO(seq), 1, sseq.len);
 
         for (i = SEQ_FROM(seq); i <= SEQ_TO(seq); ++i)
@@ -244,7 +244,7 @@ int seq_read_fasta(SEQ *seq) {
 }
 
 static SEQ *seq_mask_inplace(SEQ *seq) {
-    int a, b;
+    maf_pos_t a, b;
     FILE *fp = fopen(seq->maskname, "r");
 
     if (fp == 0) {
@@ -260,18 +260,18 @@ static SEQ *seq_mask_inplace(SEQ *seq) {
 }
 
 #define BUF 128
-static int getpair(FILE *fp, int *a, int *b) {
+static int getpair(FILE *fp, maf_pos_t *a, maf_pos_t *b) {
     char buf[BUF];
 
     /* XXX - should handle comments, etc */
     if (fgets(buf, (int)sizeof(buf), fp) == 0)
         return 0;
-    if (sscanf(buf, "%d%d", a, b) != 2)
+    if (sscanf(buf, "%lld%lld", a, b) != 2)
         return 0;
     return 1;
 }
 
-static char *byte_fill_range(uchar *p, int l, int c, int a, int b) {
+static char *byte_fill_range(uchar *p, maf_pos_t l, int c, maf_pos_t a, maf_pos_t b) {
     /* fill [a,b] (1-indexed) in p with c */
 
     a--;
@@ -280,7 +280,7 @@ static char *byte_fill_range(uchar *p, int l, int c, int a, int b) {
 }
 
 static int parse_fname(const char* arg,
-                       char **fname, int *from, int *len, char **maskfile) {
+                       char **fname, maf_pos_t *from, maf_pos_t *len, char **maskfile) {
     char *p = 0;
     int flags = 0;
 
@@ -294,9 +294,9 @@ static int parse_fname(const char* arg,
     }
 
     if ((p = strchr(*fname, '['))) {
-        int to;
+        maf_pos_t to;
 
-        if (sscanf(p+1, "%d,%d", from, &to) != 2)
+        if (sscanf(p+1, "%lld,%lld", from, &to) != 2)
             return -1;
         if (*from <= 0 || *from > to)
             return -1;
@@ -437,7 +437,7 @@ uchar dna_cmpl(uchar ch) {
     return dna_complement[ch];
 }
 
-void do_revcomp(uchar *s, int len) {
+void do_revcomp(uchar *s, maf_pos_t len) {
     uchar *p = s + len - 1;
 
     while (s<=p) {
@@ -458,17 +458,22 @@ SEQ *seq_revcomp_inplace(SEQ *seq) {
 
 int seq_read_nib(SEQ *seq) {
     int n;
+    int32_t nib_len;
     if (seq->header) ZFREE(seq->header);
     if (seq->seq) ZFREE(seq->seq);
 
+    // a .nib file stores a 32-bit length, so a range beyond it cannot name bases in the file
+    if (seq->from-1 > INT32_MAX || seq->slen > INT32_MAX)
+        fatalf("range %lld+%lld is beyond what a .nib file can hold: %s", seq->from, seq->slen, seq->fname);
     seq->offset = ftell(seq->fp);
-    seq->seq = seq_freadnib(seq->fp, seq->from-1, seq->slen, &(seq->slen));
+    seq->seq = seq_freadnib(seq->fp, (int32_t)(seq->from-1), (int32_t)seq->slen, &nib_len);
+    seq->slen = nib_len;
 
     if (seq->seq == 0) return 0;
 
     n = strlen(seq->fname)+1+22+1+22+1;
     seq->header = ckalloc(n);
-    seq->hlen = snprintf(seq->header, n, "%s:%d-%d",
+    seq->hlen = snprintf(seq->header, n, "%s:%lld-%lld",
                          seq->fname, seq->from, seq->from+seq->slen-1);
 
     seq->count++;

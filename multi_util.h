@@ -47,7 +47,7 @@ typedef struct tree_node_ {
 
 */
 
-void do_revcompl(char *s, int len);
+void do_revcompl(char *s, maf_pos_t len);
 void rev_comp(struct mafComp* c, int textSize);
 void rc(struct mafAli *a);
 //void rc_uAli(struct uAli *a);
@@ -55,8 +55,8 @@ void flip_comp(struct mafAli *a);
 void flip_comps(struct mafAli *a);
 
 
-int parse_fasta(char *line, char **ident, int *start, int *end, int *srcSize);
-int parseHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, int* end, char* strnd, int* size);
+int parse_fasta(char *line, char **ident, maf_pos_t *start, maf_pos_t *end, maf_pos_t *srcSize);
+int parseHeader(char* fn, SEQ* sf, char* name, char* chr, maf_pos_t* start, maf_pos_t* end, char* strnd, maf_pos_t* size);
 // inspect fasta header line to determine a sequence's name in maf entries
 char *seq_ident(char *filename);
 

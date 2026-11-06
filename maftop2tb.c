@@ -13,8 +13,17 @@
 #include "seq.h"
 #include "maftop2tb.h"
 
+// A filler block spans unaligned sequence, one column per base. Block widths (textSize) are int, so
+// refuse a gap wider than that rather than truncate it.
+static int filler_width(maf_pos_t size) {
+    if (size > INT_MAX)
+        fatalf("unaligned stretch of %lld bases is too wide for one block", size);
+    return (int)size;
+}
+
 struct mafAli* getMafBetween(struct mafFile* mf, char* seqfile, FILE* fpw) {
-    int i, j, start, end, size, nali, flag1, flag2;
+    int i, nali;
+    maf_pos_t j, start, end, size, flag1, flag2;
     SEQ * sf;
     char src[500], name[200], strand, comp_name[500];
     unsigned char* s;
@@ -46,7 +55,8 @@ struct mafAli* getMafBetween(struct mafFile* mf, char* seqfile, FILE* fpw) {
             C.contig = src;
             C.srcSize = size;
             C.start = start-1;
-            X.textSize = C.size = end-start+1;
+            C.size = end-start+1;
+            X.textSize = filler_width(C.size);
             C.text = (char*)malloc((C.size+1)*sizeof(char));
             for (j=0; j<C.size; j++)
                 C.text[j] = s[j];
@@ -92,7 +102,8 @@ struct mafAli* getMafBetween(struct mafFile* mf, char* seqfile, FILE* fpw) {
             C.contig = src;
             C.srcSize = size;
             C.start = start-1;
-            X.textSize = C.size = end-start+1;
+            C.size = end-start+1;
+            X.textSize = filler_width(C.size);
             C.text = (char*)malloc((C.size+1)*sizeof(char));
             for (j=0; j<C.size; j++)
                 C.text[j] = s[j];
@@ -120,7 +131,8 @@ struct mafAli* getMafBetween(struct mafFile* mf, char* seqfile, FILE* fpw) {
             if ( flag2 > flag1 ) {
                 C.start = flag1;
                 C.paralog = 's';
-                X.textSize = C.size = flag2-flag1;
+                C.size = flag2-flag1;
+                X.textSize = filler_width(C.size);
                 C.text = (char*)malloc((C.size+1)*sizeof(char));
                 for (j=0; j<C.size; j++)
                     C.text[j] = s[flag1-start+1+j];
@@ -134,7 +146,8 @@ struct mafAli* getMafBetween(struct mafFile* mf, char* seqfile, FILE* fpw) {
         if ( flag1 <= end-1 ) { // the last piece
             C.start = flag1;
             C.paralog = 's';
-            X.textSize = C.size = end-flag1;
+            C.size = end-flag1;
+            X.textSize = filler_width(C.size);
             C.text = (char*)malloc((C.size+1)*sizeof(char));
             for (j=0; j<C.size; j++)
                 C.text[j] = s[flag1-start+1+j];

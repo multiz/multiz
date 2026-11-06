@@ -42,7 +42,7 @@ static char dna_compl[256] =
 /* ................................................................ */
 /* ................................................................ */
 
-void do_revcompl(char *s, int len) {
+void do_revcompl(char *s, maf_pos_t len) {
     char c, *p = s + len - 1;
 
     while (s<=p) {
@@ -83,13 +83,13 @@ void rc_uAli(struct uAli *a) {
 }
 */
 
-int parse_fasta(char *line, char **ident, int *start, int *end, int *srcSize) {
+int parse_fasta(char *line, char **ident, maf_pos_t *start, maf_pos_t *end, maf_pos_t *srcSize) {
     char *s, *t, *copy = copy_string(line);
     int ret;
 
     if (copy[0] != '>' || (s = strchr(copy, ':')) == NULL ||
             (t = strchr(s+1, ':')) == NULL ||
-            sscanf(t+1, "%d-%d:%*c:%d", start, end, srcSize) != 3)
+            sscanf(t+1, "%lld-%lld:%*c:%lld", start, end, srcSize) != 3)
         ret = 0;
     else {
         *t = '\0';
@@ -107,7 +107,7 @@ int parse_fasta(char *line, char **ident, int *start, int *end, int *srcSize) {
 char *seq_ident(char *filename) {
     FILE *fp = fopen(filename, "r");
     char buf[500], *ident, *retur;
-    int x, y, z;
+    maf_pos_t x, y, z;
 
     if (fp == NULL || fgets(buf, 500, fp) == NULL ||
             parse_fasta(buf, &ident, &x, &y, &z) == 0)
@@ -259,7 +259,7 @@ void order_rows(struct mafAli **a, struct mafComp **location, char **species,
 15 - ${THIS_CONTIG_NUM}
 16 - ${TOTAL_NUM_CONTIGS}
 */
-static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, int* end, char* strand, int* size) {
+static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, maf_pos_t* start, maf_pos_t* end, char* strand, maf_pos_t* size) {
     char *arr[17], *ptr1, *ptr2;
     int i, len;
 
@@ -279,10 +279,10 @@ static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, 
         if ( strcmp(arr[0], ".")!=0 && strcmp(arr[7], ".")!=0 && strcmp(arr[8], ".")!=0 && strcmp(arr[9], ".")!=0 && strcmp(arr[10], ".")!=0 && strcmp(arr[11], ".")!=0 ) {
             strcpy(name, arr[0]);
             strcpy(chr,  arr[7]);
-            *start = atoi(arr[8]);
+            *start = atoll(arr[8]);
             //*end   = atoi(arr[9]);
-            *end = *start + strlen((char*)sf->seq) - 1;
-            *size  = atoi(arr[10]);
+            *end = *start + (maf_pos_t)strlen((char*)sf->seq) - 1;
+            *size  = atoll(arr[10]);
             *strand = arr[11][0];
             //if ( strcmp(arr[6], ".") != 0 )
             //strcpy(name, arr[6]);
@@ -292,7 +292,7 @@ static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, 
             strcpy(name, arr[0]);
             strcpy(chr,  arr[15]);
             *start = 1;
-            *end   = atoi(arr[13]);
+            *end   = atoll(arr[13]);
             *size  = *end;
             *strand = arr[11][0];
             return 0;
@@ -301,7 +301,7 @@ static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, 
     strcpy(name, fn);
     strcpy(chr, fn);
     *start = 1;
-    *size = *end = strlen((char*)sf->seq);
+    *size = *end = (maf_pos_t)strlen((char*)sf->seq);
     *strand = '+';
     return 0;
 
@@ -309,14 +309,14 @@ static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, 
     //return 1;
 }
 
-int parseHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, int* end, char* strand, int* size) {
+int parseHeader(char* fn, SEQ* sf, char* name, char* chr, maf_pos_t* start, maf_pos_t* end, char* strand, maf_pos_t* size) {
 
     if ( sf->header[0] != '>' )
         fatal("Wrong fasta header!");
-    if ( sscanf(sf->header, ">%[^:]:%[^:]:%d-%d:%c:%d", name, chr, start, end, strand, size) == 6 )
+    if ( sscanf(sf->header, ">%[^:]:%[^:]:%lld-%lld:%c:%lld", name, chr, start, end, strand, size) == 6 )
         return 0;
-    if ( sscanf(sf->header, ">%[^:]:%[^:]:%d:%c:%d", name, chr, start, strand, size) == 5 ) {
-        *end = *start + strlen((char*)sf->seq) - 1;
+    if ( sscanf(sf->header, ">%[^:]:%[^:]:%lld:%c:%lld", name, chr, start, strand, size) == 5 ) {
+        *end = *start + (maf_pos_t)strlen((char*)sf->seq) - 1;
         return 0;
     } else
         return parseMSAHeader(fn, sf, name, chr, start, end, strand, size);

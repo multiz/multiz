@@ -17,7 +17,7 @@ int charvec_fini(charvec_t *t) {
 #endif
 enum { BASE = BASE_ALLOC };
 
-int charvec_need(charvec_t *t, unsigned int n) {
+int charvec_need(charvec_t *t, size_t n) {
     if (t->a == 0) {
         t->len = 0;
         t->max = n;
@@ -26,7 +26,7 @@ int charvec_need(charvec_t *t, unsigned int n) {
     }
 
     if (n > t->max) {
-        unsigned int i = BASE + n + (n >> 3);
+        size_t i = BASE + n + (n >> 3);
         void *p = t->alloc(t->a, i * sizeof(char));
         if (!p)
             return 0;
@@ -36,7 +36,7 @@ int charvec_need(charvec_t *t, unsigned int n) {
     return 1;
 }
 
-int charvec_more(charvec_t *t, unsigned int n) {
+int charvec_more(charvec_t *t, size_t n) {
     return charvec_need(t, n + t->len);
 }
 
@@ -48,7 +48,7 @@ int charvec_append(charvec_t *t, char e) {
 }
 
 int charvec_fit(charvec_t *t) {
-    unsigned int i = t->len;
+    size_t i = t->len;
     void *p = t->alloc(t->a, i * sizeof(char));
     if (!p)
         return 0;

@@ -18,13 +18,14 @@ struct pair {
 *forward, *backward, *endfor, *endback;
 
 void print_pair(struct pair *p) {
-    int i, b1, b2, e1, e2, matches, gap;
+    int i, matches, gap;
+    maf_pos_t b1, b2, e1, e2;
     char *t1, *t2;
 
     for ( ; p != NULL; p = p->next) {
         b1 = p->c1->start + 1;
         b2 = p->c2->start + 1;
-        printf("a {\n  s %d\n  b %d %d\n  e %d %d\n",
+        printf("a {\n  s %d\n  b %lld %lld\n  e %lld %lld\n",
                p->score, b1, b2, b1 + p->c1->size-1, b2 + p->c2->size-1);
         t1 = p->c1->text;
         t2 = p->c2->text;
@@ -35,7 +36,7 @@ void print_pair(struct pair *p) {
         for (i = 0; i <= p->textSize; ++i) {
             if (gap == 0 && (i == p->textSize ||
                              t1[i] == '-' || t2[i] == '-')) {
-                printf("  l %d %d %d %d %d\n", b1, b2, e1, e2,
+                printf("  l %lld %lld %lld %lld %lld\n", b1, b2, e1, e2,
                        (100*matches)/(e1-b1+1));
                 gap = 1;
             } else if (gap && t1[i] != '-' && t2[i] != '-') {
@@ -56,16 +57,16 @@ void print_pair(struct pair *p) {
     }
 }
 
-void make_lav(char *name1, int len1, char *head1,
-              char *name2, int len2, char *head2, int n) {
+void make_lav(char *name1, maf_pos_t len1, char *head1,
+              char *name2, maf_pos_t len2, char *head2, int n) {
 
     printf("#:lav\ns {\n");
-    printf("  \"%s\" 1 %d 0 1\n  \"%s\" 1 %d 0 %d\n}\n",
+    printf("  \"%s\" 1 %lld 0 1\n  \"%s\" 1 %lld 0 %d\n}\n",
            name1, len1, name2, len2, n);
     printf("h {\n  \"%s\"\n  \"%s\"\n}\n", head1, head2);
     print_pair(forward);
     printf( "x {\n  n 0\n}\n#:lav\ns {\n");
-    printf("  \"%s\" 1 %d 0 1\n  \"%s-\" 1 %d 1 %d\n}\n",
+    printf("  \"%s\" 1 %lld 0 1\n  \"%s-\" 1 %lld 1 %d\n}\n",
            name1, len1, name2, len2, n);
     printf("h {\n  \"%s\"\n  \"%s (reverse complement)\"\n}\n",
            head1, head2);
@@ -137,7 +138,8 @@ int main(int argc, char **argv) {
     struct mafFile *mf;
     struct mafAli *a;
     struct mafComp *c, *c1, *c2;
-    int offset1, len1, offset2, len2, end1, end2, srcSize1, srcSize2, n, c2s, c_len;
+    int n, c_len;
+    maf_pos_t len1, len2, offset1, offset2, end1, end2, srcSize1, srcSize2, c2s;
 
 
     sprintf(cmd, "maf2lav.v%d", VERSION);
@@ -212,7 +214,7 @@ int main(int argc, char **argv) {
                         c2s -= (offset2-1);
                         c2s = len2 - (c2s + c2->size);
                     }
-                    //fprintf(stderr, "testing start = %d\n", c2->start);
+                    //fprintf(stderr, "testing start = %lld\n", c2->start);
                     if (c2s >= 0 && c2s < len2) {
                         c1->start -= (offset1-1);
                         c2->start = c2s;
