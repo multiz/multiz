@@ -3,6 +3,7 @@
 */
 
 #include <string.h>
+#include <math.h>
 #include "util.h"
 #include "seq.h"
 #include "maf.h"
@@ -506,7 +507,10 @@ struct mafAli* keep_ali(struct mafAli* ali, int beg) {
         comp = comp->next;
     }
     ali->textSize = len-col_beg;
-    ali->score = mafScoreRange(ali, 0, len-col_beg);
+    // Deferred: most kept tails are merged or sliced next, which rescores them, so this score is usually never
+    // read. NAN marks it unset, and mafWrite computes it if the block is written whole.
+    ali->score = NAN;
+    mz_lazy_count(0);
     return ali;
 }
 
@@ -578,7 +582,7 @@ struct mafAli* make_part_ali_col(struct mafAli* ali, int cbeg, int cend) {
     nali->components = NULL;
     nali->next = NULL;
     nali->textSize = cend-cbeg+1;
-    nali->score = mafScoreRange(ali, cbeg, cend-cbeg+1);
+    nali->score = 0.0;  // never read: always rescored below once all-dash columns are removed
 
     for (comp = ali->components; comp != NULL; comp=comp->next) {
         for (beg=comp->start-1, cols=0; cols < cbeg; cols++)
@@ -1231,3 +1235,21 @@ int y_intercept(struct mafAli* pw, int x0) {
 
     return (int)(y1 - (double)(y2-y1)/(x2-x1)*(x1-x0));
 }
+
+
+// Counts for testing the deferred keep_ali score (compiled in with -DMZ_COUNT_LAZY).
+// kind 0: a score deferred by keep_ali. kind 1: a deferred score computed at write.
+#ifdef MZ_COUNT_LAZY
+static long mz_lazy_n[2];
+static void mz_lazy_report(void) {
+    fprintf(stderr, "mz_lazy: deferred %ld, computed at write %ld, skipped %ld\n",
+            mz_lazy_n[0], mz_lazy_n[1], mz_lazy_n[0] - mz_lazy_n[1]);
+}
+void mz_lazy_count(int kind) {
+    static int registered = 0;
+    if (!registered) { atexit(mz_lazy_report); registered = 1; }
+    mz_lazy_n[kind]++;
+}
+#else
+void mz_lazy_count(int kind) { (void)kind; }
+#endif
