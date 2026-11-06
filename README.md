@@ -117,6 +117,26 @@ in January 2014. Its source was never published; it was reconstructed from
 UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 [`multiz`](docs/programs.md#multiz).
 
+### Changes in 11.5
+
+- **Faster block scoring.** `mafScoreRange`, which scores each merged block,
+  summed over every pair of rows in every column. It now builds each column's
+  sum from symbol counts and four gap classes, as `yama` has since 11.4, and
+  the totals are exactly the same. A substitution or gap table that is not
+  symmetric under swapping two rows falls back to the pair loop.
+- **Less scoring that is never read.** A kept block tail is scored only if it
+  is written whole, and a block slice is no longer scored twice.
+
+Output is unchanged. On one deep merge from a 217-genome roast (cs10 and 216
+assemblies), time goes from 27.1 s to 11.0 s against 11.4 (medians of three
+interleaved runs per release on one host). Every score in that merge and in a
+whole 4.4 Mb piece was also checked against the old pair loop. UCSC's hg38
+multiz5way still matches byte for byte.
+
+Program versions: every program that calls `mafScoreRange` moves on —
+`multiz` 11.5, `multic` 12.4, `tba` 15, `maf_project` 14, `lav2maf` 14,
+`maf2lav` 13, `single_cov2` 13 and `mafFind` 3. The others are unchanged.
+
 ### Changes in 11.4
 
 - **Faster alignment of deep blocks.** The dynamic-programming step summed its
