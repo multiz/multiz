@@ -67,6 +67,7 @@ void order_rows_species(struct mafAli **a, struct mafComp **location, char **spe
 
 // keep alignment starting from position beg on reference
 struct mafAli* keep_ali(struct mafAli* ali, int beg);
+void mz_lazy_count(int kind);
 
 // print part of an alignment ali from beg to end which are
 // on the first component, according to col number

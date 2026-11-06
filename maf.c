@@ -3,6 +3,7 @@
  */
 
 // mini-maf.c - Read/write maf format.  Stolen from Jim Kent & seriously abused
+#include <math.h>
 #include "util.h"
 #include "maf.h"
 #include "multi_util.h"
@@ -291,6 +292,12 @@ void mafWrite(FILE *f, struct mafAli *a) {
     int srcChars = 0, startChars = 0, sizeChars = 0, srcSizeChars = 0, row;
     char src[500], name[200], chr[200];
 
+    // A block whose score was deferred (keep_ali) is scored here, the only place it is read. The value is the
+    // same mafScoreRange over the same block, so the output does not change.
+    if ( isnan(a->score) ) {
+        a->score = mafScoreRange(a, 0, a->textSize);
+        mz_lazy_count(1);
+    }
     fprintf(f, "a");
     if ( a->score != MIN_INT )
         fprintf(f, " score=%3.1f", a->score);
