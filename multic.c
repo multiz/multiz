@@ -32,7 +32,7 @@ extern int MIN_OUTPUT_WID;
 extern int row2;
 extern int CONNECTION_THRESHOLD;
 
-#define VERSION 12.4
+#define VERSION 12.5
 //#define SHORTEST_BLOCKSIZE 30
 
 int ALIGN_CATE = 0;
@@ -57,7 +57,8 @@ int any_identical_species(struct mafComp* A, struct mafComp* B) {
 void overlap_wrapper(struct aliNode* A, struct aliNode* B, int v) {
     struct mafComp* compA, *compB, *comp;
     struct mafAli* nali;
-    int over_beg, over_end, a_end, b_end, A_cbeg, A_cend, B_cbeg, B_cend, i;
+    int A_cbeg, A_cend, B_cbeg, B_cend, i;
+    maf_pos_t over_beg, over_end, a_end, b_end;
 
     compA = A->ali->components;
     compB = B->ali->components; // top reference
@@ -68,7 +69,7 @@ void overlap_wrapper(struct aliNode* A, struct aliNode* B, int v) {
     over_end = a_end < b_end ? a_end : b_end;
 
     if ( over_beg > over_end )
-        fatalf("there is no overlapping! %d %d\n", over_beg, over_end);
+        fatalf("there is no overlapping! %lld %lld\n", over_beg, over_end);
     nali = pre_yama(A->ali, B->ali, over_beg, over_end, radius, v, NULL, NULL);
     if ( nali==NULL)
         return;
@@ -104,7 +105,7 @@ void overlap_wrapper(struct aliNode* A, struct aliNode* B, int v) {
     // ---- mark the used region -------//
     if ( over_beg < compA->start || over_beg > compA->start+compA->size-1
             || over_end < compA->start || over_end > compA->start+compA->size-1 )
-        fatalf("index out of boundary: %d-%d, %d-%d", over_beg, over_end, compA->start, compA->start+compA->size-1);
+        fatalf("index out of boundary: %lld-%lld, %lld-%lld", over_beg, over_end, compA->start, compA->start+compA->size-1);
     A_cbeg = mafPos2Col(A->ali->components, over_beg, A->ali->textSize);
     A_cend = mafPos2Col(A->ali->components, over_end, A->ali->textSize);
 
@@ -113,7 +114,7 @@ void overlap_wrapper(struct aliNode* A, struct aliNode* B, int v) {
 
     if ( over_beg < compB->start || over_beg > compB->start+compB->size-1
             || over_end < compB->start || over_end > compB->start+compB->size-1 )
-        fatalf("index out of boundary: %d-%d, %d-%d", over_beg, over_end, compB->start, compB->start+compB->size-1);
+        fatalf("index out of boundary: %lld-%lld, %lld-%lld", over_beg, over_end, compB->start, compB->start+compB->size-1);
     B_cbeg = mafPos2Col(B->ali->components, over_beg, B->ali->textSize);
     B_cend = mafPos2Col(B->ali->components, over_end, B->ali->textSize);
 
@@ -124,7 +125,8 @@ void overlap_wrapper(struct aliNode* A, struct aliNode* B, int v) {
 int multih(struct aliNode* A, struct aliNode* B, int v) {
     struct aliNode *a=A, *b=B, *bk;
     struct mafComp* comp, *compA, *compB;
-    int a_beg, a_end, b_end, copyA, copyB;
+    int copyA, copyB;
+    maf_pos_t a_beg, a_end, b_end;
 
     for (a=A, bk=B; a!=NULL; a=a->next) {
 

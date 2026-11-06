@@ -56,11 +56,12 @@ extern int MIN_OUTPUT_WID;
 extern int LRG_BREAK_WID;
 extern int SML_BREAK_WID;
 
-#define VERSION 11.5
+#define VERSION 11.6
 
 int multiz(struct mafStream* wk_list1, struct mafStream* wk_list2, FILE* fpw1, FILE* fpw2, int v) {
     struct mafAli *a1, *a2, *new_ali;
-    int beg1, end1, beg2, end2, beg, end, col_beg, col_end;
+    maf_pos_t beg1, end1, beg2, end2, beg, end;
+    int col_beg, col_end;
     int test=0;
 
     a1 = mafStreamNext(wk_list1);

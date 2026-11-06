@@ -207,7 +207,7 @@ struct mafAli *mafNext(struct mafFile *mf) {
         c->text = ckalloc(len*sizeof(char));
         if ( line[0] != 's' )
             continue;
-        if (sscanf(line, "s %s %d %d %c %d %s",
+        if (sscanf(line, "s %s %lld %lld %c %lld %s",
                    buf, &(c->start), &(c->size), &(c->strand),
                    &(c->srcSize), c->text) != 6)
             fatalf("bad component in file %s, line %d:\n%s",
@@ -236,7 +236,7 @@ struct mafAli *mafNext(struct mafFile *mf) {
             if (c != a->components) {
                 c = a->components;
                 fprintf(stderr,
-                        "in maf entry with top row %s:%d len = %d,\n",
+                        "in maf entry with top row %s:%lld len = %lld,\n",
                         c->src, c->start, c->size);
             }
             fatalf("Bad coordinates at line %d of file %s:\n%s",
@@ -246,7 +246,7 @@ struct mafAli *mafNext(struct mafFile *mf) {
             if (c->text[i] != '-')
                 ++len;
         if (len != c->size)
-            fatalf("Actual size %d, claimed size %d at line %d of file %s:\n%s", len, c->size, mf->line_nbr, mf->fileName, line);
+            fatalf("Actual size %d, claimed size %lld at line %d of file %s:\n%s", len, c->size, mf->line_nbr, mf->fileName, line);
 
     }
     parseScoreLine(blockHeaderLine, a);
@@ -276,11 +276,11 @@ void mafWriteEnd(FILE *f) {
 }
 
 //static int digitsBaseTen(int x) {
-int digitsBaseTen(int x) {
+int digitsBaseTen(maf_pos_t x) {
     int digCount;
 
     if (x < 0)
-        fatalf("digitsBaseTen: negative argument %d", x);
+        fatalf("digitsBaseTen: negative argument %lld", x);
     for (digCount = 1; x >= 10; x /= 10, ++digCount)
         ;
     return digCount;
@@ -331,7 +331,7 @@ void mafWrite(FILE *f, struct mafAli *a) {
             strcat(src, ".");
             strcat(src, chr);
         }
-        fprintf(f, "s %-*s %*d %*d %c %*d %s\n",
+        fprintf(f, "s %-*s %*lld %*lld %c %*lld %s\n",
                 srcChars, src, startChars, c->start, sizeChars, c->size,
                 c->strand, srcSizeChars, c->srcSize, c->text);
     }
@@ -462,7 +462,7 @@ struct mafAli* mafRowDashRm(struct mafAli *ali) {
     return ali;
 }
 
-struct mafComp *mafNewComp(char *src, int start, int size, char strand, int srcSize, int len, char paralog, char *name, char* contig) {
+struct mafComp *mafNewComp(char *src, maf_pos_t start, maf_pos_t size, char strand, maf_pos_t srcSize, int len, char paralog, char *name, char* contig) {
     struct mafComp *c = ckalloc(sizeof(struct mafComp));
 
     c->src = copy_string(src);

@@ -5,6 +5,7 @@
 
 #include "util.h"
 #include "nib.h"
+#include "maf.h"      /* maf_pos_t */
 
 //typedef unsigned char uchar;
 
@@ -35,8 +36,8 @@ enum {
 
 typedef struct seq_file {
     uchar *seq;
-    int slen; /* bytes in seq, not including '\0' */
-    int from; /* 1 based */
+    maf_pos_t slen; /* bytes in seq, not including '\0' */
+    maf_pos_t from; /* 1 based */
 
     FILE *fp;
     int type; // guess, fasta, nib, ...
@@ -73,7 +74,7 @@ int seq_read_fasta(SEQ *seq);
 SEQ *seq_copy(const SEQ *s);
 SEQ *seq_revcomp_inplace(SEQ *seq);
 SEQ *seq_get(const char *fname);	/* seq_open + seq_read */
-void do_revcomp(uchar *s, int len);
+void do_revcomp(uchar *s, maf_pos_t len);
 uchar dna_cmpl(unsigned char);
 void init_KEEP_SEQ();
 void close_KEEP_SEQ();

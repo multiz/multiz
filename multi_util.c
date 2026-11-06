@@ -42,7 +42,7 @@ static char dna_compl[256] =
 /* ................................................................ */
 /* ................................................................ */
 
-void do_revcompl(char *s, int len) {
+void do_revcompl(char *s, maf_pos_t len) {
     char c, *p = s + len - 1;
 
     while (s<=p) {
@@ -83,13 +83,13 @@ void rc_uAli(struct uAli *a) {
 }
 */
 
-int parse_fasta(char *line, char **ident, int *start, int *end, int *srcSize) {
+int parse_fasta(char *line, char **ident, maf_pos_t *start, maf_pos_t *end, maf_pos_t *srcSize) {
     char *s, *t, *copy = copy_string(line);
     int ret;
 
     if (copy[0] != '>' || (s = strchr(copy, ':')) == NULL ||
             (t = strchr(s+1, ':')) == NULL ||
-            sscanf(t+1, "%d-%d:%*c:%d", start, end, srcSize) != 3)
+            sscanf(t+1, "%lld-%lld:%*c:%lld", start, end, srcSize) != 3)
         ret = 0;
     else {
         *t = '\0';
@@ -107,7 +107,7 @@ int parse_fasta(char *line, char **ident, int *start, int *end, int *srcSize) {
 char *seq_ident(char *filename) {
     FILE *fp = fopen(filename, "r");
     char buf[500], *ident, *retur;
-    int x, y, z;
+    maf_pos_t x, y, z;
 
     if (fp == NULL || fgets(buf, 500, fp) == NULL ||
             parse_fasta(buf, &ident, &x, &y, &z) == 0)
@@ -120,8 +120,8 @@ char *seq_ident(char *filename) {
 }
 
 static int compar(const void *a, const void *b) {
-    return (*((struct mafAli **)a))->components->start -
-           (*((struct mafAli **)b))->components->start;
+    return maf_pos_cmp((*((struct mafAli **)a))->components->start,
+                       (*((struct mafAli **)b))->components->start);
 }
 
 struct mafAli **mafArray(struct mafAli *a, int *nali) {
@@ -259,7 +259,7 @@ void order_rows(struct mafAli **a, struct mafComp **location, char **species,
 15 - ${THIS_CONTIG_NUM}
 16 - ${TOTAL_NUM_CONTIGS}
 */
-static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, int* end, char* strand, int* size) {
+static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, maf_pos_t* start, maf_pos_t* end, char* strand, maf_pos_t* size) {
     char *arr[17], *ptr1, *ptr2;
     int i, len;
 
@@ -279,10 +279,10 @@ static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, 
         if ( strcmp(arr[0], ".")!=0 && strcmp(arr[7], ".")!=0 && strcmp(arr[8], ".")!=0 && strcmp(arr[9], ".")!=0 && strcmp(arr[10], ".")!=0 && strcmp(arr[11], ".")!=0 ) {
             strcpy(name, arr[0]);
             strcpy(chr,  arr[7]);
-            *start = atoi(arr[8]);
+            *start = atoll(arr[8]);
             //*end   = atoi(arr[9]);
-            *end = *start + strlen((char*)sf->seq) - 1;
-            *size  = atoi(arr[10]);
+            *end = *start + (maf_pos_t)strlen((char*)sf->seq) - 1;
+            *size  = atoll(arr[10]);
             *strand = arr[11][0];
             //if ( strcmp(arr[6], ".") != 0 )
             //strcpy(name, arr[6]);
@@ -292,7 +292,7 @@ static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, 
             strcpy(name, arr[0]);
             strcpy(chr,  arr[15]);
             *start = 1;
-            *end   = atoi(arr[13]);
+            *end   = atoll(arr[13]);
             *size  = *end;
             *strand = arr[11][0];
             return 0;
@@ -301,7 +301,7 @@ static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, 
     strcpy(name, fn);
     strcpy(chr, fn);
     *start = 1;
-    *size = *end = strlen((char*)sf->seq);
+    *size = *end = (maf_pos_t)strlen((char*)sf->seq);
     *strand = '+';
     return 0;
 
@@ -309,14 +309,14 @@ static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, 
     //return 1;
 }
 
-int parseHeader(char* fn, SEQ* sf, char* name, char* chr, int* start, int* end, char* strand, int* size) {
+int parseHeader(char* fn, SEQ* sf, char* name, char* chr, maf_pos_t* start, maf_pos_t* end, char* strand, maf_pos_t* size) {
 
     if ( sf->header[0] != '>' )
         fatal("Wrong fasta header!");
-    if ( sscanf(sf->header, ">%[^:]:%[^:]:%d-%d:%c:%d", name, chr, start, end, strand, size) == 6 )
+    if ( sscanf(sf->header, ">%[^:]:%[^:]:%lld-%lld:%c:%lld", name, chr, start, end, strand, size) == 6 )
         return 0;
-    if ( sscanf(sf->header, ">%[^:]:%[^:]:%d:%c:%d", name, chr, start, strand, size) == 5 ) {
-        *end = *start + strlen((char*)sf->seq) - 1;
+    if ( sscanf(sf->header, ">%[^:]:%[^:]:%lld:%c:%lld", name, chr, start, strand, size) == 5 ) {
+        *end = *start + (maf_pos_t)strlen((char*)sf->seq) - 1;
         return 0;
     } else
         return parseMSAHeader(fn, sf, name, chr, start, end, strand, size);
@@ -466,7 +466,7 @@ void flip_comps(struct mafAli *a) {
 }
 
 // return a mafAli structure based on the input ali starting on position beg
-struct mafAli* keep_ali(struct mafAli* ali, int beg) {
+struct mafAli* keep_ali(struct mafAli* ali, maf_pos_t beg) {
     int len, col_beg, count, i;
     char* s;
     struct mafComp* comp, *del_ptr;
@@ -516,9 +516,10 @@ struct mafAli* keep_ali(struct mafAli* ali, int beg) {
 
 
 // beg, end are on the first component, not col number, starts at 0
-int print_part_ali(struct mafAli* ali, int beg, int end, FILE* fp) {
+int print_part_ali(struct mafAli* ali, maf_pos_t beg, maf_pos_t end, FILE* fp) {
     struct mafComp* comp, *ncomp, *last;
-    int rel_beg, rel_end, cols, chs, col_beg, col_end, len, i;
+    int cols, chs, col_beg, col_end, len, i;
+    maf_pos_t rel_beg, rel_end;
     struct mafAli* nali;
 
     rel_beg = beg - ali->components->start;
@@ -573,7 +574,8 @@ int print_part_ali(struct mafAli* ali, int beg, int end, FILE* fp) {
 
 struct mafAli* make_part_ali_col(struct mafAli* ali, int cbeg, int cend) {
     struct mafComp* comp, *ncomp, *pcomp;
-    int beg, cols, chs, i;
+    int cols, chs, i;
+    maf_pos_t beg;
     struct mafAli* nali;
 
     if ( cend-cbeg+1 == 0 )
@@ -634,11 +636,12 @@ int print_part_ali_col(struct mafAli* ali, int cbeg, int cend, FILE* fp) {
 
 
 // pos starts at 0, col starts at 0
-int mafPos2Col(struct mafComp *c, int pos, int textSize) {
-    int col, p;
+int mafPos2Col(struct mafComp *c, maf_pos_t pos, int textSize) {
+    int col;
+    maf_pos_t p;
 
     if (pos < c->start || pos >= c->start + c->size)
-        fatalf("mafPos2Col: %d not in %d-%d",
+        fatalf("mafPos2Col: %lld not in %lld-%lld",
                pos, c->start, c->start + c->size - 1);
     for (col = 0, p = c->start - 1; col < textSize; ++col)
         if (c->text[col] != '-' && ++p == pos)
@@ -648,11 +651,12 @@ int mafPos2Col(struct mafComp *c, int pos, int textSize) {
     return col;
 }
 
-int mafPos2Col_v2(struct mafComp *c, int pos) {
-    int col, p;
+int mafPos2Col_v2(struct mafComp *c, maf_pos_t pos) {
+    int col;
+    maf_pos_t p;
 
     if (pos < c->start || pos >= c->start + c->size)
-        fatalf("mafPos2Col_v2: %d not in %d-%d",
+        fatalf("mafPos2Col_v2: %lld not in %lld-%lld",
                pos, c->start, c->start + c->size - 1);
     for (col = 0, p = c->start - 1; c->text[col]!='\0'; ++col)
         if (c->text[col] != '-' && ++p == pos)
@@ -692,7 +696,7 @@ struct mafAli *mafSlice(struct mafAli *a, int start_col, int beyond_col) {
 
 // flush output-list entries that start before a specified position
 //struct mafAli *mafFlush(struct mafAli *output_list, int pos, FILE* fp) {
-struct mafAli *mafFlush(struct mafAli *output_list, int pos) {
+struct mafAli *mafFlush(struct mafAli *output_list, maf_pos_t pos) {
     struct mafAli *atmp;
 
     while (output_list != NULL && output_list->components->start <= pos) {
@@ -707,13 +711,13 @@ struct mafAli *mafFlush(struct mafAli *output_list, int pos) {
 // insert an alignment into the output list, sorting by components->start
 struct mafAli *mafInsert(struct mafAli *output_list, struct mafAli *a) {
     struct mafAli *m, *next;
-    int beg1;
+    maf_pos_t beg1;
 
     if (a == NULL)
         return output_list;
 
     beg1 = a->components->start;
-//fprintf(stderr, "mafInsert %d\n", beg1);
+//fprintf(stderr, "mafInsert %lld\n", beg1);
     if (output_list == NULL || output_list->components->start >= beg1) {
         // put a at the start of the output list
         a->next = output_list;
@@ -734,10 +738,10 @@ void insert_ali(struct mafAli** ali_head, struct mafAli* ali) {
 }
 
 int compar_ali_top_start(const void* a, const void* b) {
-    return (*(struct mafAli**)a)->components->start - (*(struct mafAli**)b)->components->start;
+    return maf_pos_cmp((*(struct mafAli**)a)->components->start, (*(struct mafAli**)b)->components->start);
 }
 
-int change_neg_pos(struct mafComp* comp, int pos) { // pos is on comp
+maf_pos_t change_neg_pos(struct mafComp* comp, maf_pos_t pos) { // pos is on comp
     if ( comp->strand == '+')
         return pos;
     return comp->srcSize-1-pos;
@@ -745,9 +749,10 @@ int change_neg_pos(struct mafComp* comp, int pos) { // pos is on comp
 
 // currently break_ali cut ali with two rows
 // bp is on top component maf position, ali2 is already allocated
-void break_ali(struct mafAli* ali, int bp, struct mafAli* ali2) { // the second new ali includes bp if possible
+void break_ali(struct mafAli* ali, maf_pos_t bp, struct mafAli* ali2) { // the second new ali includes bp if possible
     struct mafComp* comp, *srcComp;
-    int col, new_start_col, new_end_col, new_start_top_maf, new_start_bot_maf, new_end_top_maf, new_end_bot_maf, top_maf, bot_maf;
+    int col, new_start_col, new_end_col;
+    maf_pos_t new_start_top_maf, new_start_bot_maf, new_end_top_maf, new_end_bot_maf, top_maf, bot_maf;
 
     new_start_top_maf= new_start_bot_maf = new_end_top_maf = new_end_bot_maf =-1;
     col = mafPos2Col(ali->components, bp, ali->textSize);
@@ -847,8 +852,9 @@ void seperate_cp_wk(struct mafAli** cp_list, struct mafAli** wk_list, char* chr)
 }
 
 // if colth is '-', mafpos should be the first non - after that
-int colPos2Maf_after(struct mafComp* comp, int col) {
-    int i, pos;
+maf_pos_t colPos2Maf_after(struct mafComp* comp, int col) {
+    int i;
+    maf_pos_t pos;
     for ( pos = comp->start-1, i=0; i<col; i++)
         if (comp->text[i] != '-')
             pos++;
@@ -859,8 +865,9 @@ int colPos2Maf_after(struct mafComp* comp, int col) {
 }
 
 // if colth is '-', mafpos should be the last non - before that
-int colPos2Maf_before(struct mafComp* comp, int col) {
-    int i, pos;
+maf_pos_t colPos2Maf_before(struct mafComp* comp, int col) {
+    int i;
+    maf_pos_t pos;
     for (pos = comp->start-1, i=0; i<=col; i++)
         if ( comp->text[i] != '-')
             pos++;
@@ -876,14 +883,14 @@ int test_ali(struct mafAli* ali) {
         if ( *ch != '-' )
             i++;
     if ( i!=ali->components->size) {
-        printf("ali->components->size: %d real-size: %d\n", ali->components->size, i);
+        printf("ali->components->size: %lld real-size: %d\n", ali->components->size, i);
         return 1;
     }
     for ( ch=ali->components->next->text, i=0; *ch!='\0'; ch++)
         if ( *ch != '-')
             i++;
     if ( i!=ali->components->next->size) {
-        printf("ali->components->next->size: %d realsize: %d\n", ali->components->next->size, i);
+        printf("ali->components->next->size: %lld realsize: %d\n", ali->components->next->size, i);
         return 1;
     }
     return 0;
@@ -928,8 +935,8 @@ void parseSrcName2(struct mafComp* c ) {
     }
 }
 
-int overlap(int beg1, int end1, int beg2, int end2) {
-    int over_beg, over_end, over_len;
+int overlap(maf_pos_t beg1, maf_pos_t end1, maf_pos_t beg2, maf_pos_t end2) {
+    maf_pos_t over_beg, over_end, over_len;
     double over_threshold;
 
     if ( beg2 > end1 || beg1 > end2 )
@@ -1217,9 +1224,9 @@ int compute_ss(struct mafAli* ali, int cbeg, int cend) {
     return score;
 }
 
-int y_intercept(struct mafAli* pw, int x0) {
+maf_pos_t y_intercept(struct mafAli* pw, maf_pos_t x0) {
     struct mafComp* comp;
-    int x1, x2, y1, y2, tmp;
+    maf_pos_t x1, x2, y1, y2, tmp;
 
     comp = pw->components;
     x1 = comp->start;
@@ -1233,7 +1240,7 @@ int y_intercept(struct mafAli* pw, int x0) {
         y2 = comp->srcSize - tmp - 1;
     }
 
-    return (int)(y1 - (double)(y2-y1)/(x2-x1)*(x1-x0));
+    return (maf_pos_t)(y1 - (double)(y2-y1)/(x2-x1)*(x1-x0));
 }
 
 

@@ -17,7 +17,7 @@ struct mafAli* get_unused() {
 }
 
 int compar_start(const void* a, const void* b) {
-    return (*((struct mafAli **)a))->components->start - (*((struct mafAli **)b))->components->start;
+    return maf_pos_cmp((*((struct mafAli **)a))->components->start, (*((struct mafAli **)b))->components->start);
 }
 
 struct mafAli* ref_mvto_top(struct mafAli* root) {

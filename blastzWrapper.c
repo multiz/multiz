@@ -13,7 +13,7 @@
 #include "seq.h"
 
 #define BZ "lastz"    // we use lastz instead of blastz
-#define VERSION 11
+#define VERSION 12
 
 // replace the first argument with the new first_fn
 static char* modify_cmdline(int argc, char** argv, char* first_fn, char* second_fn, char* newcmd) {
@@ -29,7 +29,8 @@ static char* modify_cmdline(int argc, char** argv, char* first_fn, char* second_
 // switch the first and second sequence
 void replace_reverse_bz(FILE* fpr, FILE* fpw, char* replace_str, int contig, int rev) {
     char buf[1000], buf1[1000], buf2[1000], cmd[200], spe1[200], spe2[200];
-    int b1, b2, e1, e2, pct, beg, end, dir;
+    int pct, dir;
+    maf_pos_t b1, b2, e1, e2, beg, end;
 
     while ( fgets(buf, 1000, fpr) != NULL) {
         if ( rev==1 && strncmp(buf, "d {", 3) == 0) {
@@ -46,8 +47,8 @@ void replace_reverse_bz(FILE* fpr, FILE* fpw, char* replace_str, int contig, int
         } else if ( strncmp(buf, "s {", 3) == 0) {
             fprintf(fpw, "%s", buf);
             fgets(buf1, 1000, fpr);
-            sscanf(buf1, "%*s %d %d %d %*d", &beg, &end, &dir);
-            sprintf(buf1, "  \"%s\" %d %d %d %d\n", replace_str, beg, end, dir, contig);
+            sscanf(buf1, "%*s %lld %lld %d %*d", &beg, &end, &dir);
+            sprintf(buf1, "  \"%s\" %lld %lld %d %d\n", replace_str, beg, end, dir, contig);
             fgets(buf2, 1000, fpr);
             if (rev==1) {
                 fprintf(fpw, "%s", buf2);
@@ -61,15 +62,15 @@ void replace_reverse_bz(FILE* fpr, FILE* fpw, char* replace_str, int contig, int
             fgets(buf, 1000, fpr);
             fprintf(fpw, "%s", buf);  // s
             fgets(buf, 1000, fpr);    // b
-            sscanf(buf, "  b %d %d", &b1, &b2);
-            fprintf(fpw, "  b %d %d\n", b2, b1);
+            sscanf(buf, "  b %lld %lld", &b1, &b2);
+            fprintf(fpw, "  b %lld %lld\n", b2, b1);
             fgets(buf, 1000, fpr);    // e
-            sscanf(buf, "  e %d %d", &e1, &e2);
-            fprintf(fpw, "  e %d %d\n", e2, e1);
+            sscanf(buf, "  e %lld %lld", &e1, &e2);
+            fprintf(fpw, "  e %lld %lld\n", e2, e1);
             fgets(buf, 1000, fpr);
             while ( strncmp(buf, "  l", 3)==0) {
-                sscanf(buf, "  l %d %d %d %d %d", &b1, &b2, &e1, &e2, &pct);
-                fprintf(fpw, "  l %d %d %d %d %d\n", b2, b1, e2, e1, pct);
+                sscanf(buf, "  l %lld %lld %lld %lld %d", &b1, &b2, &e1, &e2, &pct);
+                fprintf(fpw, "  l %lld %lld %lld %lld %d\n", b2, b1, e2, e1, pct);
                 fgets(buf, 1000, fpr);
             }
             fprintf(fpw, "%s", buf);

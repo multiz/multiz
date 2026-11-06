@@ -9,13 +9,13 @@
 #include "maf.h"
 
 struct position {
-    int x, y;
+    maf_pos_t x, y;
 };
 
 // transform a single ali to ordered uAli with a given list of species
 struct ordereduAli {
     char** contigs;
-    int* begins, *ends;  // positively oriented
+    maf_pos_t* begins, *ends;  // positively oriented
 };
 
 //----< wrapper of ali structure with mark array >------
@@ -25,14 +25,15 @@ struct uAli {
     struct uAli* next;
     char* sortContig;
     struct ordereduAli *oali;
-    int index, start, end, cbeg, cend, rows, *indexes, incoming;
+    int index, cbeg, cend, rows, *indexes, incoming;
+    maf_pos_t start, end;
     char flipped;
 };
 
 //----< sorted array of uAlis >-----
 struct sortuAlis {
     struct uAli** sortuAliArr;
-    int *fronts, *ends;
+    maf_pos_t *fronts, *ends;
     char* sortedSpeciesName;
     int sortuAliArrSize;
 };
@@ -69,7 +70,7 @@ TreeNode, *TreeNodePtr;
 struct uAli* ali2uAli(struct mafAli* ali);
 struct uAli** aliList2uAliArr(struct mafAli* subtreeAli, int treeCount);
 void rc_uAli(struct uAli* uali);
-void mark_uAli(struct uAli* A, int beg, int end, struct mafAli* nalilist);
+void mark_uAli(struct uAli* A, maf_pos_t beg, maf_pos_t end, struct mafAli* nalilist);
 void print_unused_ali(struct uAli* iAli, FILE* fpw);
 
 void initialize_uAliFile(struct mafAli* head, struct uAliFile* tAli);
@@ -85,6 +86,6 @@ int mark_infered_pws(struct mafAli* nlist, struct pwuAliFiles* pws);
 int sort_uAli_contigs(struct uAli** uAliArr, int arrSize);
 
 struct sortuAlis* do_sortuAlis(struct uAli** uAliArr, int totalSize, char* name, int subSize);
-struct uAli* Find_Exemplar(struct sortuAlis* sAli, char* src, int beg, int end, int* startIndex);
+struct uAli* Find_Exemplar(struct sortuAlis* sAli, char* src, maf_pos_t beg, maf_pos_t end, int* startIndex);
 
 #endif

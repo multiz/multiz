@@ -1,6 +1,6 @@
 // lav2maf.c -- convert a blastz output file to a .maf file
 
-#define VERSION 14
+#define VERSION 15
 
 #include "util.h"
 #include "maf.h"
@@ -16,8 +16,10 @@ char t1[MAX_ALIGN_LEN], t2[MAX_ALIGN_LEN];
 
 int main(int argc, char **argv) {
     char buf[500], cmd[500], chr1[500], chr2[500],  name1[200], name2[200], src1[500], src2[500], strand1, strand2, cur_file1[500], cur_file2[500];
-    int i, j, k, b1, b2, e1, e2, old_e1, old_e2, len1=-1, len2=-1, dir1,dir2, contig1, contig2;
-    int srcSize1, srcSize2, tmp, start1, start2, end1, end2;
+    int k, dir1,dir2, contig1, contig2;
+    int tmp;
+    maf_pos_t i, j, b1, b2, e1, e2, old_e1, old_e2, len1=-1, len2=-1;
+    maf_pos_t srcSize1, srcSize2, start1, start2, end1, end2;
     struct mafAli B, *a;
     struct mafComp C1, C2, *c1, *c2;
     FILE *fp;
@@ -202,7 +204,7 @@ int main(int argc, char **argv) {
             fgets(buf, 500, fp);	// score
             fgets(buf, 500, fp); // can't trust this b1, b2;
             fgets(buf, 500, fp); // ditto for e1, e2
-            if (sscanf(buf, "  e %d %d", &e1, &e2) != 2)
+            if (sscanf(buf, "  e %lld %lld", &e1, &e2) != 2)
                 fatalf("cannot parse: %s", buf);
             if (e1 > len1)
                 fatal("first sequence length is incorrect");
@@ -211,7 +213,7 @@ int main(int argc, char **argv) {
             old_e1 = old_e2 = -1;
             k = 0;
             while (fgets(buf, 500, fp) && buf[0] != '}') {
-                if (sscanf(buf, "  l %d %d %d %d",
+                if (sscanf(buf, "  l %lld %lld %lld %lld",
                            &b1, &b2, &e1, &e2) != 4)
                     fatalf("cannot read end-points: %s",
                            buf);

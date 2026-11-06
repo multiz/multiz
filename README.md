@@ -117,6 +117,36 @@ in January 2014. Its source was never published; it was reconstructed from
 UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 [`multiz`](docs/programs.md#multiz).
 
+### Changes in 11.6
+
+- **Sequences longer than 2^31 − 1 bases.** Coordinates and sequence lengths
+  were 32-bit `int`. In 11.5 a start or length between 2^31 and 2^32 stopped
+  with `Size <= 0`, and one past 2^32 wrapped to a wrong coordinate with exit
+  status 0. Every program now holds them in 64 bits, including the FASTA and
+  lav readers and the sort comparators.
+- **Totals and products that overflowed.** `single_cov2`'s count of bases lost
+  could pass 2^31 on whole-genome input, and `tba` multiplied two spans as
+  `int` when comparing chain connections, which overflowed past about 46,000
+  bases each. Both are 64-bit now.
+- **Limits that stay 32-bit say so.** A `.nib` file stores a 32-bit length, and
+  a block's width is still an `int`. Reading a `.nib` range past that, or a
+  `pair2tb` unaligned stretch wider than that, stops with an error instead of
+  truncating.
+- **No undefined shifts.** `MIN_INT` and `MAX_INT` were built by shifting 1
+  into the sign bit. They are now `INT_MIN` and `INT_MAX`.
+
+Output is otherwise unchanged. A test harness shifts every coordinate of real
+and synthetic inputs by up to 4 × 10^12 and checks that `roast` and `multiz`
+give the same alignment, shifted. 11.6 passes all 165 checks and 11.5 fails 96.
+A deep merge, a whole 217-genome piece and UCSC's hg38 multiz5way are byte for
+byte the same as 11.5.
+
+Program versions: every program except `all_bz` reads coordinates and moves
+on — `multiz` 11.6, `multic` 12.5, `tba` 16, `roast` 5, `maf_project` 15,
+`lav2maf` 15, `maf2lav` 14, `single_cov2` 14, `pair2tb` 13, `blastzWrapper` 12,
+`maf_order` 12, `maf2fasta` 5 and `mafFind` 4. `get_covered`, `maf_sort`,
+`maf_checkThread` and `get_standard_headers` print no version.
+
 ### Changes in 11.5
 
 - **Faster block scoring.** `mafScoreRange`, which scores each merged block,

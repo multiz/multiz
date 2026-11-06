@@ -7,8 +7,17 @@
 // abused
 #include <stdio.h>
 
-#define MAX_INT ((int)(~(1<<(sizeof(int)*8-1))))
-#define MIN_INT ((int)(1<<(sizeof(int)*8-1)))
+#include <limits.h>
+#define MAX_INT INT_MAX
+#define MIN_INT INT_MIN
+
+/* A sequence coordinate or length. 64-bit so a chromosome may exceed 2^31 - 1 bases (11.6). */
+typedef long long maf_pos_t;
+
+/* Three-way comparison of two coordinates, for qsort comparators: a difference would not fit in an int. */
+static inline int maf_pos_cmp(maf_pos_t a, maf_pos_t b) {
+    return (a > b) - (a < b);
+}
 
 struct mafFile
             /* A file full of multiple alignments. */
@@ -48,10 +57,10 @@ struct mafComp
     char *src;	 /* Name of sequence source.  */
     char *text;        /* The sequence including dashes. */
     char* contig;
-    int* mafPosMap;
-    int srcSize;       /* Size of sequence source.  */
-    int start;	 /* Start within sequence. Zero based. If strand is - is relative to src end. */
-    int size;	         /* Size in sequence (does not include dashes).  */
+    maf_pos_t* mafPosMap;
+    maf_pos_t srcSize;       /* Size of sequence source.  */
+    maf_pos_t start;	 /* Start within sequence. Zero based. If strand is - is relative to src end. */
+    maf_pos_t size;	         /* Size in sequence (does not include dashes).  */
     short nameID;
     char strand;       /* Strand of sequence.  Either + or -*/
     char paralog;
@@ -86,7 +95,7 @@ struct mafAli* mafColDashRm(struct mafAli *a);
 struct mafAli* mafRowDashRm(struct mafAli *a);
 /* remove components which contain all dashes. */
 
-struct mafComp *mafNewComp(char *src, int start, int size, char strand, int srcSize, int len, char paralog, char* name, char* contig);
+struct mafComp *mafNewComp(char *src, maf_pos_t start, maf_pos_t size, char strand, maf_pos_t srcSize, int len, char paralog, char* name, char* contig);
 /* construct a new component. */
 
 struct mafAli* make_part_ali(struct mafAli* template, int cbeg, int cend);

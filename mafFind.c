@@ -12,7 +12,7 @@
 *	mafFind file.maf beg end mm3 slice
 */
 
-#define VERSION 3
+#define VERSION 4
 
 #include "util.h"
 #include "maf.h"
@@ -23,7 +23,8 @@ int main(int argc, char **argv) {
     struct mafFile *mf;
     struct mafAli *a, *A;
     struct mafComp *c;
-    int i, b, e, B, E, bcol, ecol, sz, slice = 0, species_len=-1;
+    int i, bcol, ecol, sz, slice = 0, species_len=-1;
+    maf_pos_t b, e, B, E;
     char cmd[100], *species = NULL;
 
     sprintf(cmd, "mafFind.v%d", VERSION);
@@ -39,8 +40,8 @@ int main(int argc, char **argv) {
     }
     if (i != 4)
         fatal(" -- find mafs intersecting a particular interval.\nargs: file.maf beg end [species-prefix] [slice]");
-    B = atoi(argv[2]);
-    E = atoi(argv[3]);
+    B = atoll(argv[2]);
+    E = atoll(argv[3]);
     mf = mafOpen(argv[1], 0);
     mafWriteStart(stdout, cmd);
     printf("# %s", cmd);

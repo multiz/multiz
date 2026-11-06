@@ -38,7 +38,8 @@ void smooth(int *LB, int *RB, int M, int N, int radius) {
 struct mafAli *mafBuild(uchar **A_new, int nrow, int ncol, struct mafAli *a2, int cbeg2, struct mafAli *a3, int cbeg3, int top) {
     struct mafAli *A = ckalloc(sizeof(struct mafAli));
     struct mafComp *nc, *d, *prev_nc = NULL;
-    int i, j, beg, strt;
+    int i, j, beg;
+    maf_pos_t strt;
 
     A->textSize = ncol;
     A->next = NULL;
@@ -149,7 +150,7 @@ int* mapping(uchar** A, int a_row1, int a_row2, int a_col1, int a_col2, uchar** 
 
 // determine upper and lower bounds for yama procedure
 // v can only be 0, or 1
-struct mafAli* pre_yama(struct mafAli *a1, struct mafAli* a2, int beg, int end,int radius, int v, FILE* fpw1, FILE* fpw2) {
+struct mafAli* pre_yama(struct mafAli *a1, struct mafAli* a2, maf_pos_t beg, maf_pos_t end,int radius, int v, FILE* fpw1, FILE* fpw2) {
     int cbeg1, cend1, cbeg2, cend2, M, N, K, L, i, j, M_new, M3,N3;
     int *LB, *RB, *LB2, *RB2;
     uchar **A, **B, **AL_new, **AL_new2, **A2, **B2;
@@ -363,7 +364,7 @@ struct mafAli* pre_yama(struct mafAli *a1, struct mafAli* a2, int beg, int end,i
 }
 
 // verify equality of characters in what are presumed to be identical sequences.
-static void must_equal(char x, char y, int pos, // starting position
+static void must_equal(char x, char y, maf_pos_t pos, // starting position
                        struct mafComp *c1, int cbeg1, int cend1,	// begin and end columns
                        struct mafComp *c2, int cbeg2, int cend2,
                        int file2) {					// 2 or 3
@@ -372,7 +373,7 @@ static void must_equal(char x, char y, int pos, // starting position
 
     if (toupper(x) != toupper(y)) {
         fprintf(stderr, "%c != %c\n", x, y);
-        fprintf(stderr, "in file 1, positions %d... of %s are:\n  ",
+        fprintf(stderr, "in file 1, positions %lld... of %s are:\n  ",
                 pos, c1->src);
         for (i = cbeg1; i <= cend1; ++i)
             if ((z = c1->text[i]) != '-')
@@ -388,7 +389,7 @@ static void must_equal(char x, char y, int pos, // starting position
 }
 
 
-struct mafAli* pre_yama2(struct mafAli* a1, struct mafAli* a2, struct mafAli* a3, int beg1, int end1, int begN, int endN, int radius, struct pwuAliFiles* pws) {
+struct mafAli* pre_yama2(struct mafAli* a1, struct mafAli* a2, struct mafAli* a3, maf_pos_t beg1, maf_pos_t end1, maf_pos_t begN, maf_pos_t endN, int radius, struct pwuAliFiles* pws) {
 
     struct mafAli *val;
     struct mafComp *c, *c1, *c2, *c3, *d;
@@ -412,7 +413,7 @@ struct mafAli* pre_yama2(struct mafAli* a1, struct mafAli* a2, struct mafAli* a3
         fatalf("pre_yama: first rows for sequences %s != %s",
                c->src, c2->src);
     if (c->srcSize != c2->srcSize)
-        fatalf("pre_yama: first row srcSizes %d != %d",
+        fatalf("pre_yama: first row srcSizes %lld != %lld",
                c->srcSize, c1->srcSize);
     if (c->strand != c2->strand)
         fatalf("pre_yama: first rows on opposite strands");
@@ -420,7 +421,7 @@ struct mafAli* pre_yama2(struct mafAli* a1, struct mafAli* a2, struct mafAli* a3
         fatalf("pre_yama: first rows (2) for sequences %s != %s",
                c1->src, c3->src);
     if (c1->srcSize != c3->srcSize)
-        fatalf("pre_yama: first row (2) srcSizes %d != %d",
+        fatalf("pre_yama: first row (2) srcSizes %lld != %lld",
                c1->srcSize, c3->srcSize);
     if (c1->strand != c3->strand)
         fatalf("pre_yama: first rows (2) on opposite strands");
