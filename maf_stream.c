@@ -140,10 +140,7 @@ int mafIndexFirstUnused(struct mafIndex *ix) {
 struct mafAli *mafIndexRead(struct mafIndex *ix, int blk) {
     struct mafAli *a;
 
-    if (fseek(ix->mf->fp, ix->off[blk], SEEK_SET) != 0)
-        fatalf("cannot seek in %s", ix->mf->fileName);
-    free(ix->mf->pending);      // a line kept by the previous read belongs to wherever that
-    ix->mf->pending = NULL;     // read stopped, not to this block
+    mafSeekBlock(ix->mf, ix->off[blk]);
     a = mafNext(ix->mf);
     if (a == NULL)
         fatalf("cannot re-read block %d of %s", blk, ix->mf->fileName);

@@ -26,6 +26,7 @@ struct mafFile *mafOpen(char *fileName, int verbose) {
     mf->fileName = copy_string(fileName);
     mf->line_nbr = 0;
     mf->pending = NULL;
+    mf->off = -1;
     mf->verbose = verbose;
     mf->scoring = NULL;
     if ((len = get_line(&line, &nb, fp)) == -1) {
@@ -104,6 +105,8 @@ unsigned long get_maf_line(char **linep, unsigned long *np, FILE *fp,
     long nn;
 
     while ((nn = get_line(linep, np, fp)) > 1) {
+        if (mf->off >= 0)
+            mf->off += nn;
         mf->line_nbr++;
         if  ((*linep)[0] == '#') {
             if (mf->verbose && strstr(*linep, "eof")==NULL)
@@ -111,7 +114,29 @@ unsigned long get_maf_line(char **linep, unsigned long *np, FILE *fp,
         } else
             break;
     }
+    if (nn == 1 && mf->off >= 0)    // the blank line that ended the loop
+        mf->off += nn;
     return nn;
+}
+
+/* mafSeekBlock: every byte read after a seek goes through get_maf_line, which
+*  keeps mf->off, and the pending line is a whole line with its newline. So the
+*  next unread line starts at mf->off minus the pending line's length. A block read
+*  in file order usually starts exactly there, and seeking would only discard the
+*  stdio buffer.
+*/
+void mafSeekBlock(struct mafFile *mf, long off) {
+    long long at = -1;
+
+    if (mf->off >= 0)
+        at = mf->off - (mf->pending != NULL ? (long long)strlen(mf->pending) : 0);
+    if (at == off)
+        return;
+    if (fseek(mf->fp, off, SEEK_SET) != 0)
+        fatalf("cannot seek in %s", mf->fileName);
+    free(mf->pending);          // a line kept by the previous read belongs to wherever that
+    mf->pending = NULL;         // read stopped, not to this block
+    mf->off = off;
 }
 
 // parse line "a ..." to get score

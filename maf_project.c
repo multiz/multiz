@@ -572,10 +572,7 @@ static int ps_cmp(const void *x, const void *y) {
 
 static struct mafAli *ps_read(struct mafFile *mf, int blk) {
     struct mafAli *a;
-    if (fseek(mf->fp, ps_off[blk], SEEK_SET) != 0)
-        fatalf("cannot seek in %s", mf->fileName);
-    free(mf->pending);          // a line kept by the previous read belongs to wherever that
-    mf->pending = NULL;         // read stopped, not to this block
+    mafSeekBlock(mf, ps_off[blk]);
     if ((a = mafNext(mf)) == NULL)
         fatalf("cannot re-read a block of %s", mf->fileName);
     return a;
