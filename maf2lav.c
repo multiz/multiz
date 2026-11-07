@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
                 c1 = c2 = NULL;
                 for (c = a->components; c != NULL; c = c->next) {
                     c_len = strlen(c->src);
-                    if (c1==NULL && strncmp(c->src, name1, c_len)==0 && ((c->strand=='+' && c->start+1 >= offset1 && c->start+c->size-1 < end1) || (c->start=='-' && c->srcSize-c->start-c->size+1 >= offset1 && c->srcSize - c->start < end1)))
+                    if (c1==NULL && strncmp(c->src, name1, c_len)==0 && ((c->strand=='+' && c->start+1 >= offset1 && c->start+c->size-1 < end1) || (c->strand=='-' && c->srcSize-c->start-c->size+1 >= offset1 && c->srcSize - c->start < end1)))
                         c1 = c;
                     else if (strncmp(c->src, name2, c_len)==0 && ((c->strand=='+' && c->start+1 >= offset2 && c->start+c->size-1 < end2) || (c->strand=='-' && c->srcSize - c->start - c->size+1 >= offset2 && c->srcSize - c->start < end2)))
                         c2 = c;
