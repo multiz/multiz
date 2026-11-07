@@ -79,23 +79,17 @@ int need(unsigned long n, char **linep, unsigned long *np) {
 }
 
 //static unsigned long get_line(char **linep, unsigned long *np, FILE *fp) {
+/* A line with its newline, NUL-terminated; its length, or -1 at end of file. This
+*  is getline's contract, and getline reads the stream's buffer a block at a time
+*  where the old loop took one fgetc call per character. */
 unsigned long get_line(char **linep, unsigned long *np, FILE *fp) {
-    int ch;
-    unsigned long n = 0;
+    size_t cap = (size_t)*np;
+    ssize_t n;
 
-    while ((ch = fgetc(fp)) != -1) {
-        if (need(n+1, linep, np))
-            return -1;
-        (*linep)[n++] = ch;
-        if (ch == '\n')
-            break;
-    }
-    if (need(n+1, linep, np))
-        return -1;
-    (*linep)[n] = 0;
-    if (n == 0 && ch == -1)
-        return -1;
-    return n;
+    _Static_assert(sizeof(unsigned long) == sizeof(size_t), "get_line passes np to getline");
+    n = getline(linep, &cap, fp);
+    *np = (unsigned long)cap;
+    return n < 0 ? (unsigned long)-1 : (unsigned long)n;
 }
 
 //static unsigned long get_maf_line(char **linep, unsigned long *np, FILE *fp,
@@ -385,6 +379,52 @@ int digitsBaseTen(maf_pos_t x) {
 }
 
 
+/* put_s_line: writes what fprintf(f, "s %-*s %*lld %*lld %c %*lld %s\n", ...) writes,
+*  without parsing a format for every row. The name is left-justified and padded to
+*  its width, the numbers right-justified to theirs; nothing is truncated. The numbers
+*  are never negative (digitsBaseTen has already refused them).
+*/
+static void put_pad(FILE *f, int n) {
+    while (n-- > 0)
+        putc(' ', f);
+}
+
+static void put_ll(FILE *f, long long v, int width) {
+    char buf[24], *p = buf + sizeof buf;
+    int neg = v < 0;
+    unsigned long long u = neg ? -(unsigned long long)v : (unsigned long long)v;
+
+    do {
+        *--p = (char)('0' + u % 10);
+        u /= 10;
+    } while (u != 0);
+    if (neg)
+        *--p = '-';
+    put_pad(f, width - (int)(buf + sizeof buf - p));
+    fwrite(p, 1, (size_t)(buf + sizeof buf - p), f);
+}
+
+static void put_s_line(FILE *f, const char *src, int srcw, long long start, int startw,
+                       long long size, int sizew, char strand, long long srcSize, int srcSizew,
+                       const char *text) {
+    size_t n = strlen(src);
+
+    fputs("s ", f);
+    fwrite(src, 1, n, f);
+    put_pad(f, srcw - (int)n);
+    putc(' ', f);
+    put_ll(f, start, startw);
+    putc(' ', f);
+    put_ll(f, size, sizew);
+    putc(' ', f);
+    putc(strand, f);
+    putc(' ', f);
+    put_ll(f, srcSize, srcSizew);
+    putc(' ', f);
+    fputs(text, f);
+    putc('\n', f);
+}
+
 void mafWrite(FILE *f, struct mafAli *a) {
     struct mafComp *c;
     int srcChars = 0, startChars = 0, sizeChars = 0, srcSizeChars = 0, row;
@@ -429,9 +469,8 @@ void mafWrite(FILE *f, struct mafAli *a) {
             strcat(src, ".");
             strcat(src, chr);
         }
-        fprintf(f, "s %-*s %*lld %*lld %c %*lld %s\n",
-                srcChars, src, startChars, c->start, sizeChars, c->size,
-                c->strand, srcSizeChars, c->srcSize, c->text);
+        put_s_line(f, src, srcChars, c->start, startChars, c->size, sizeChars,
+                   c->strand, c->srcSize, srcSizeChars, c->text);
     }
     fprintf(f, "\n");	// blank separator line
 }
