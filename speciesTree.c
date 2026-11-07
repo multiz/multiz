@@ -1,4 +1,8 @@
+#define _POSIX_C_SOURCE 200809L
 #include <unistd.h>
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
 #include "speciesTree.h"
 #include "util.h"
 #include "multi_util.h"
@@ -11,6 +15,7 @@ extern char* PREFIX;
 extern char* OPERAT;
 
 #define BIG_BUF_SIZE 50000
+#define NAMESIZE_ST 500	// matches roast's NAMESIZE: temp-file names are built in buffers this size
 
 // do_cmd -- print and possible execute a command
 void do_cmd(const char *fmt, ...) {
@@ -41,8 +46,152 @@ void do_cmd(const char *fmt, ...) {
     free(buf);
 }
 
+
+/* ------------- native versions of the shell file steps (see speciesTree.h) ------------- */
+
+static void native_note(const char *cmd, int ok) {
+    if (!ok && force == 0)
+        fatalf("command '%s' failed", cmd);
+}
+
+static void native_show(const char *cmd) {
+    if (verbose) {
+        (void)printf("%s\n", cmd);
+        (void)fflush(stdout);
+    }
+}
+
+// copy every byte of from to the end of an open stream; returns 0 if from cannot be read
+static int append_file(const char *from, FILE *to) {
+    FILE *in = fopen(from, "r");
+    char *buf;
+    size_t n;
+    int ok = 1;
+
+    if (in == NULL)
+        return 0;
+    buf = ckalloc(1 << 20);
+    while ((n = fread(buf, 1, 1 << 20, in)) > 0)
+        if (fwrite(buf, 1, n, to) != n) {
+            ok = 0;
+            break;
+        }
+    if (ferror(in))
+        ok = 0;
+    free(buf);
+    fclose(in);
+    return ok;
+}
+
+// cp from to: the source is opened first, so a missing source creates no target, as with cp
+static int copy_file(const char *from, const char *to) {
+    FILE *in, *out;
+    int ok;
+
+    if ((in = fopen(from, "r")) == NULL)
+        return 0;
+    fclose(in);
+    if ((out = fopen(to, "w")) == NULL)
+        return 0;
+    ok = append_file(from, out);
+    if (fclose(out) != 0)
+        ok = 0;
+    return ok;
+}
+
+void native_mv(const char *from, const char *to) {
+    char cmd[2 * NAMESIZE_ST + 8];
+    int ok;
+
+    snprintf(cmd, sizeof cmd, "mv %s %s", from, to);
+    native_show(cmd);
+    if (!execute)
+        return;
+    ok = (rename(from, to) == 0);
+    if (!ok && errno == EXDEV)      // another file system: copy, then remove, as mv does
+        ok = copy_file(from, to) && unlink(from) == 0;
+    native_note(cmd, ok);
+}
+
+void native_rm2(const char *a, const char *b) {
+    char cmd[2 * NAMESIZE_ST + 8];
+
+    snprintf(cmd, sizeof cmd, "rm -f %s %s", a, b);
+    native_show(cmd);
+    if (!execute)
+        return;
+    (void)unlink(a);    // rm -f: a missing file is not an error
+    (void)unlink(b);
+}
+
+void native_cp(const char *from, const char *to) {
+    char cmd[2 * NAMESIZE_ST + 8];
+
+    snprintf(cmd, sizeof cmd, "cp %s %s", from, to);
+    native_show(cmd);
+    if (!execute)
+        return;
+    native_note(cmd, copy_file(from, to));
+}
+
+/* grep -v: copy each line that does not contain pat anywhere, adding a newline to a last
+*  line that lacks one. grep exits 1 when it selects no line and 2 when a file cannot be
+*  read, after printing "grep: FILE: No such file or directory" (or the system's reason).
+*/
+void native_grep_v_append(const char *pat, const char *in1, const char *in2, const char *out) {
+    char cmd[4 * NAMESIZE_ST + 32];
+    const char *ins[2];
+    FILE *o, *in;
+    char *line = NULL;
+    size_t cap = 0;
+    ssize_t len;
+    int k, selected = 0, err = 0;
+    char *obuf, *ibuf;
+
+    if (in2 == NULL)
+        snprintf(cmd, sizeof cmd, "grep -v %s %s >> %s", pat, in1, out);
+    else
+        snprintf(cmd, sizeof cmd, "grep -v -h %s %s %s >> %s", pat, in1, in2, out);
+    native_show(cmd);
+    if (!execute)
+        return;
+    if ((o = fopen(out, "a")) == NULL) {    // the shell's >> failed: grep never ran
+        native_note(cmd, 0);
+        return;
+    }
+    obuf = ckalloc(1 << 20);
+    setvbuf(o, obuf, _IOFBF, 1 << 20);
+    ibuf = ckalloc(1 << 20);
+    ins[0] = in1;
+    ins[1] = in2;
+    for (k = 0; k < 2 && ins[k] != NULL; k++) {
+        if ((in = fopen(ins[k], "r")) == NULL) {
+            fprintf(stderr, "grep: %s: %s\n", ins[k], strerror(errno));
+            err = 1;
+            continue;
+        }
+        setvbuf(in, ibuf, _IOFBF, 1 << 20);
+        while ((len = getline(&line, &cap, in)) != -1) {
+            if (strstr(line, pat) != NULL)
+                continue;
+            selected = 1;
+            fwrite(line, 1, (size_t)len, o);
+            if (line[len-1] != '\n')
+                fputc('\n', o);
+        }
+        fclose(in);
+    }
+    free(line);
+    if (fclose(o) != 0)
+        err = 1;
+    free(obuf);
+    free(ibuf);
+    native_note(cmd, !err && selected);
+}
+
 int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, int* id, char* buf, int (*operation)(TreeNodePtr, TreeNodePtr, int, int, char **)) {
     char name_list[10000], *q, *p;
+    char fn_left[NAMESIZE_ST], fn_right[NAMESIZE_ST], fn_out[NAMESIZE_ST], fn_head[NAMESIZE_ST], fn_child[NAMESIZE_ST];
     NameListPtr n;
     int top=-1, i, j;
 
@@ -81,17 +230,25 @@ int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, in
             // children are leaves, to avoid a use of multiz.
             i = tree[top-1].id;
             j = tree[top].id;
-            if (i >= 0)
-                do_cmd("mv %s%s%d %sleft.maf%d", PREFIX, OPERAT, i, PREFIX, *id);
-            if (j >= 0)
-                do_cmd("mv %s%s%d %sright.maf%d", PREFIX, OPERAT, j, PREFIX, *id);
-            do_cmd("cp %shead %s%s%d", PREFIX, PREFIX, OPERAT, *id);
+            snprintf(fn_left, sizeof fn_left, "%sleft.maf%d", PREFIX, *id);
+            snprintf(fn_right, sizeof fn_right, "%sright.maf%d", PREFIX, *id);
+            snprintf(fn_out, sizeof fn_out, "%s%s%d", PREFIX, OPERAT, *id);
+            snprintf(fn_head, sizeof fn_head, "%shead", PREFIX);
+            if (i >= 0) {
+                snprintf(fn_child, sizeof fn_child, "%s%s%d", PREFIX, OPERAT, i);
+                native_mv(fn_child, fn_left);
+            }
+            if (j >= 0) {
+                snprintf(fn_child, sizeof fn_child, "%s%s%d", PREFIX, OPERAT, j);
+                native_mv(fn_child, fn_right);
+            }
+            native_cp(fn_head, fn_out);
             operation(&(tree[top-1]), &(tree[top]), *id, nbz, bz_file);
             if (i >= 0 || j >= 0) {
                 if ( execute == 1) {
                     force = 1;
-                    do_cmd("grep -v maf %sleft.maf%d >> %s%s%d", PREFIX, *id, PREFIX, OPERAT, *id);
-                    do_cmd("grep -v maf %sright.maf%d >> %s%s%d", PREFIX, *id, PREFIX, OPERAT, *id);
+                    native_grep_v_append("maf", fn_left, NULL, fn_out);
+                    native_grep_v_append("maf", fn_right, NULL, fn_out);
                     force = 0;
                 }
                 name_list[0] = '\0';
