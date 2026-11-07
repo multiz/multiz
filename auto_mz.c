@@ -101,8 +101,11 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
     else
         snprintf(in_right, sizeof in_right, "%s", _right_maf);
 
-    do_cmd(project_cmd, MP, in_left, REF, _MZ_O1, _MZ_U1);
-    do_cmd(project_cmd, MP, in_right, REF, _MZ_O2, _MZ_U2);
+    {
+        const char *pl[] = { in_left, REF, _MZ_O1, NULL }, *pr[] = { in_right, REF, _MZ_O2, NULL };
+        native_run(MP, pl, _MZ_U1, 0);
+        native_run(MP, pr, _MZ_U2, 0);
+    }
     native_mv(_MZ_U1, _left_maf);
     native_mv(_MZ_U2, _right_maf);
 
@@ -110,7 +113,8 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
     right = contain_species(n2, REF);
 
     if ( left==0 && right==0 ) {
-        do_cmd("%s %s %s 0 %s %s >> %s%s%d", mz, _left_maf, _right_maf, _MZ_U1, _MZ_U2, PREFIX, OPERAT, id);
+        const char *ma[] = { _left_maf, _right_maf, "0", _MZ_U1, _MZ_U2, NULL };
+        native_run(mz, ma, fn_out, 1);
         if ( n1->next == NULL && n2->next == NULL ) {
             force = 1;
             native_grep_v_append("eof", _MZ_U1, _MZ_U2, fn_out);
@@ -122,7 +126,8 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
             native_mv(_left_maf, _right_maf);
             native_mv(_middle_maf, _left_maf);
         }
-        do_cmd("%s %s %s 1 %s %s >> %s%s%d", mz, _left_maf, _right_maf, _MZ_U1, _MZ_U2, PREFIX, OPERAT, id);
+        const char *ma[] = { _left_maf, _right_maf, "1", _MZ_U1, _MZ_U2, NULL };
+        native_run(mz, ma, fn_out, 1);
     }
     native_mv(_MZ_U1, _left_maf);
     native_mv(_MZ_U2, _right_maf);
@@ -305,7 +310,12 @@ int main(int argc, char **argv) {
 
     if ((p = strchr(name_list, '+')) != NULL)
         *p = ' ';
-    do_cmd("%s %s%s%d %s %s > %s", MP, PREFIX, OPERAT, id-1, REF, _MZ_O1, _MZ_U1);
+    {
+        char fn_last[NAMESIZE];
+        const char *pa[] = { fn_last, REF, _MZ_O1, NULL };
+        snprintf(fn_last, sizeof fn_last, "%s%s%d", PREFIX, OPERAT, id-1);
+        native_run(MP, pa, _MZ_U1, 0);
+    }
     force = 1;
     native_grep_v_append("eof", _MZ_U1, NULL, DESTINATION);
     force = 0;

@@ -3,6 +3,9 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <fcntl.h>
+#include <spawn.h>
+#include <sys/wait.h>
 #include "speciesTree.h"
 #include "util.h"
 #include "multi_util.h"
@@ -10,6 +13,7 @@
 extern int force;
 extern int execute;
 extern int verbose;
+extern char **environ;
 
 extern char* PREFIX;
 extern char* OPERAT;
@@ -48,6 +52,65 @@ void do_cmd(const char *fmt, ...) {
 
 
 /* ------------- native versions of the shell file steps (see speciesTree.h) ------------- */
+
+static void native_note(const char *cmd, int ok);
+static void native_show(const char *cmd);
+
+void native_run(const char *words, const char *const *args, const char *out, int append) {
+    char *cmd, *copy, *tok, *save = NULL, **argv;
+    size_t len, nw = 0, na = 0, i;
+    posix_spawn_file_actions_t fa;
+    pid_t pid;
+    int status = 0, ok;
+
+    for (na = 0; args[na] != NULL; na++)
+        ;
+    len = strlen(words) + strlen(out) + 8;
+    for (i = 0; i < na; i++)
+        len += strlen(args[i]) + 1;
+    cmd = ckalloc(len);
+    strcpy(cmd, words);              // the text do_cmd would have printed and run
+    for (i = 0; i < na; i++) {       // one space before each argument, as the "%s %s" formats gave
+        strcat(cmd, " ");
+        strcat(cmd, args[i]);
+    }
+    strcat(cmd, append ? " >> " : " > ");
+    strcat(cmd, out);
+    native_show(cmd);
+    if (!execute) {
+        free(cmd);
+        return;
+    }
+    copy = copy_string(words);
+    argv = ckalloc((strlen(words) + na + 2) * sizeof(char *));
+    for (tok = strtok_r(copy, " \t", &save); tok != NULL; tok = strtok_r(NULL, " \t", &save))
+        argv[nw++] = tok;
+    if (nw == 0)
+        fatalf("command '%s' failed", cmd);
+    for (i = 0; i < na; i++)
+        argv[nw + i] = (char *)args[i];
+    argv[nw + na] = NULL;
+    fflush(stdout);                  // the child inherits stdout's descriptor, not its buffer
+    fflush(stderr);
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, out, O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC), 0666);
+    ok = posix_spawnp(&pid, argv[0], &fa, NULL, argv, environ) == 0;
+    if (!ok)
+        fprintf(stderr, "%s: %s\n", argv[0], strerror(errno));
+    posix_spawn_file_actions_destroy(&fa);
+    if (ok) {
+        while (waitpid(pid, &status, 0) == -1)
+            if (errno != EINTR) {
+                ok = 0;
+                break;
+            }
+        ok = ok && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
+    native_note(cmd, ok);
+    free(argv);
+    free(copy);
+    free(cmd);
+}
 
 static void native_note(const char *cmd, int ok) {
     if (!ok && force == 0)

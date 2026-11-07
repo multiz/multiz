@@ -14,6 +14,10 @@ void native_rm2(const char *a, const char *b);                      // rm -f a b
 void native_cp(const char *from, const char *to);                   // cp from to
 void native_grep_v_append(const char *pat, const char *in1, const char *in2, const char *out);
     // grep -v pat in1 >> out, or grep -v -h pat in1 in2 >> out when in2 is not NULL
+void native_run(const char *words, const char *const *args, const char *out, int append);
+    /* words args... > out (append: >> out), started directly rather than through
+    *  /bin/sh. words is a program name plus options, split on spaces as the shell
+    *  would; args follow it. */
 
 /* parse treeStr, tree is allocated, assuming enough size */
 int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, int* id, char* buf, int (*operation)(TreeNodePtr, TreeNodePtr, int, int, char**));
