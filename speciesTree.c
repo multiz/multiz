@@ -7,6 +7,7 @@
 #include <spawn.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include "speciesTree.h"
 #include "util.h"
 #include "multi_util.h"
@@ -488,10 +489,99 @@ static int no_options(char **w, int from, int to) {
     return 1;
 }
 
+/* echo "TEXT" > FILE or >> FILE, when TEXT holds nothing the shell or dash's echo
+*  would interpret ($, `, \, "): writes TEXT and a newline, as the shell would. */
+static int ns_echo(const char *cmd) {
+    const char *q, *e, *t;
+    FILE *o;
+    int append, ok;
+
+    if (strncmp(cmd, "echo \"", 6) != 0)
+        return -1;
+    q = cmd + 6;
+    if ((e = strchr(q, '"')) == NULL)
+        return -1;
+    for (t = q; t < e; t++)
+        if (*t == '$' || *t == '`' || *t == '\\' || *t == '\n')
+            return -1;
+    t = e + 1;
+    if (strncmp(t, " >> ", 4) == 0) {
+        append = 1;
+        t += 4;
+    } else if (strncmp(t, " > ", 3) == 0) {
+        append = 0;
+        t += 3;
+    } else
+        return -1;
+    if (*t == '\0' || strpbrk(t, " \t\"'\\$`*?[]|;&<>(){}~\n") != NULL)
+        return -1;
+    if ((o = fopen(t, append ? "a" : "w")) == NULL)
+        return 0;
+    ok = fwrite(q, 1, (size_t)(e - q), o) == (size_t)(e - q) && fputc('\n', o) != EOF;
+    if (fclose(o) != 0)
+        ok = 0;
+    return ok;
+}
+
+/* rm DIR/PREFIX*: removes every entry of DIR whose name starts with PREFIX (and,
+*  like the shell's glob, not a hidden one unless PREFIX starts with '.'). With no
+*  match the shell would pass the word through and rm would fail; so does this. */
+static int ns_rm_glob(const char *cmd) {
+    char *path, *slash, *dir, *pre;
+    DIR *d;
+    struct dirent *ent;
+    size_t n;
+    int matched = 0, ok = 1;
+
+    if (strncmp(cmd, "rm ", 3) != 0)
+        return -1;
+    path = copy_string(cmd + 3);
+    n = strlen(path);
+    if (n < 2 || path[n-1] != '*' || strpbrk(path, " \t\"'\\$`?[]|;&<>(){}~\n") != NULL
+            || strchr(path, '*') != path + n - 1 || path[0] == '-') {
+        free(path);
+        return -1;
+    }
+    path[n-1] = '\0';
+    if ((slash = strrchr(path, '/')) != NULL) {
+        *slash = '\0';
+        dir = (slash == path) ? "/" : path;
+        pre = slash + 1;
+    } else {
+        dir = ".";
+        pre = path;
+    }
+    if ((d = opendir(dir)) != NULL) {
+        while ((ent = readdir(d)) != NULL) {
+            if (strncmp(ent->d_name, pre, strlen(pre)) != 0)
+                continue;
+            if (ent->d_name[0] == '.' && pre[0] != '.')
+                continue;
+            char *f = ckalloc(strlen(dir) + strlen(ent->d_name) + 2);
+            sprintf(f, "%s/%s", dir, ent->d_name);
+            matched = 1;
+            if (unlink(f) != 0) {
+                fprintf(stderr, "rm: cannot remove '%s': %s\n", f, strerror(errno));
+                ok = 0;
+            }
+            free(f);
+        }
+        closedir(d);
+    }
+    if (!matched) {
+        fprintf(stderr, "rm: cannot remove '%s*': No such file or directory\n", cmd[3] ? path : "");
+        ok = 0;
+    }
+    free(path);
+    return ok;
+}
+
 static int native_shell(const char *cmd) {
     char *copy, *w[NS_MAXW + 1], *out = NULL, *tok, *save = NULL;
     int nw = 0, append = 0, r = -1, k;
 
+    if ((r = ns_echo(cmd)) >= 0 || (r = ns_rm_glob(cmd)) >= 0)
+        return r;
     if (strpbrk(cmd, "\"'\\$`*?[]|;&<(){}~\n") != NULL)
         return -1;
     copy = copy_string(cmd);
