@@ -50,6 +50,16 @@ dp_node;
 *  the pair-by-pair loops produced, and the alignment is unchanged.
 */
 #define CL(t,v) (((t)<<1)|(v))	// class of a row from two 0/1 dash flags
+
+/* The best of the paths from the C, D and I nodes, with ties going to C, then D:
+*  x if x >= y and x >= z, else y if y > z, else z. Written as selects rather than
+*  branches, since which wins is unpredictable from cell to cell.
+*/
+#define BEST3(x, y, z, V, F) do { \
+        int bx_ = ((x) >= (y)) & ((x) >= (z)), by_ = !bx_ & ((y) > (z)); \
+        (V) = bx_ ? (x) : by_ ? (y) : (z); \
+        (F) = bx_ ? FLAG_C : by_ ? FLAG_D : FLAG_I; \
+    } while (0)
 // a 4-class dot product: counts of B's row classes against one row table
 #define DOT4(g,w) ((g)[0]*(w)[0] + (g)[1]*(w)[1] + (g)[2]*(w)[2] + (g)[3]*(w)[3])
 
@@ -256,23 +266,11 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                         z -= Izc[col];
                     y -= vb[col][0]*rt[row].Iy[0] + vb[col][1]*rt[row].Iy[1];
                 }
-                if (x >= y && x >= z) {
-                    /* It is best to precede the insertion
-                    *  edge with a substitution edge, i.e.,
-                    *  to reach the I node at grid point
-                    *  (row,col) from the C node at
-                    *  (row-1,col).
-                    */
-                    I = x;
-                    flag_i = FLAG_C;
-                } else if (y > z) {
-                    // It is best to come from the D node.
-                    I = y;
-                    flag_i = FLAG_D;
-                } else {
-                    I = z;
-                    flag_i = FLAG_I;
-                }
+                /* Precede the insertion edge with a substitution edge
+                *  (from the C node at (row-1,col)) if that is best,
+                *  else with a deletion edge, else with an insertion.
+                */
+                BEST3(x, y, z, I, flag_i);
                 /* Each of n non-dashes in the inserted column
                 * is aligned to K dashes.
                 */
@@ -297,16 +295,7 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                     if (row > 1)
                         y -= vb[col][0]*rt[row].Cy[0] + vb[col][1]*rt[row].Cy[1];
                 }
-                if (x >= y && x >= z) {
-                    C = x;
-                    flag_c = FLAG_C;
-                } else if (y > z) {
-                    C = y;
-                    flag_c = FLAG_D;
-                } else {
-                    C = z;
-                    flag_c = FLAG_I;
-                }
+                BEST3(x, y, z, C, flag_c);
                 for (k = 0; k < nsym; ++k)	// a zero count adds zero: no branch
                     C += hist[(size_t)col*nsym + k]*wA[(size_t)row*nsym + k];
             } else {
@@ -327,16 +316,7 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                 if (col > LB[row-1])
                     z -= vb[col][0]*rt[row].Dz[0] + vb[col][1]*rt[row].Dz[1];
             }
-            if (x >= y && x >= z) {
-                D = x;
-                flag_d = FLAG_C;
-            } else if (y > z) {
-                D = y;
-                flag_d = FLAG_D;
-            } else {
-                D = z;
-                flag_d = FLAG_I;
-            }
+            BEST3(x, y, z, D, flag_d);
             // Each of n non-dashes in the deleted column
             // is aligned to L dashes.
 
