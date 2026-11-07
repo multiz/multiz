@@ -1,0 +1,21 @@
+# Built programs (the Makefile's PROGS)
+/all_bz
+/lav2maf
+/pair2tb
+/single_cov2
+/blastzWrapper
+/maf_project
+/maf2lav
+/maf2fasta
+/maf_order
+/mafFind
+/get_standard_headers
+/maf_checkThread
+/tba
+/roast
+/multic
+/multiz
+/maf_sort
+/get_covered
+# make tarfile
+/multiz-tba.*.tar.gz
