@@ -45,6 +45,16 @@ put coordinates past 2^31 and 2^32. This catches coordinates held in 32
 bits; 11.5 fails all twelve. It needs no expected files. `shift.awk` does the
 moving.
 
+**`roast name seofb|smafb`**: the `roast` test with species `sb` renamed so
+that its name contains `eof` or `maf`, then renamed back, must give the
+`roast` output (fields compared, since names set the column padding). roast
+drops comment lines containing those strings, and before 11.8 it dropped any
+row containing them too. `seofb` covers the merge of the reference with one
+leaf, where roast appends the leaf's pairwise file through the `eof` filter;
+the old filter loses every `seofb` row. `smafb` guards the `maf` filter, which
+sees only blocks a merge left unused, and these inputs leave none, so it
+passes with the old filter as well.
+
 ## Expected outputs
 
 The files in `expected/` were made by the 11.6 release. After a change that

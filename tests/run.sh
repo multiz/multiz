@@ -133,5 +133,29 @@ for off in $OFFSETS; do
 	result "roast shifted $off" "$why"
 done
 
+# 4. Sequence names containing "eof" or "maf". roast filters those strings out
+# of comment lines; an alignment row whose name merely contains one must be
+# kept. seofb exercises the merge of the reference with one leaf, where roast
+# appends that leaf's pairwise file through the eof filter. Renamed back, the
+# output must equal the roast output above. Needs no expected files.
+for nm in seofb smafb; do
+	d=$W/roast.$nm
+	mkdir -p "$d/tmp"
+	for f in "$D"/tba/sa.*.sing.maf; do
+		g=$(echo "${f##*/}" | sed "s/\.sb\./.$nm./")
+		sed "s/^s sb\([ .]\)/s $nm\1/" "$f" > "$d/$g"
+	done
+	t=$(echo "$TREE" | sed "s/sb/$nm/")
+	(cd "$d" && roast T="$d/tmp" E=sa "$t" sa.*.sing.maf out.maf > /dev/null 2> err; echo $? > rc)
+	why=
+	ran "$d" || why=" exit $(cat "$d/rc")"
+	grep -q "^s $nm" "$d/out.maf" || why="$why no $nm rows in the output"
+	# names pad the row columns, so compare fields, not spacing
+	sed "s/^s $nm\([ .]\)/s sb\1/" "$d/out.maf" | grep -v '^#' | awk '{$1 = $1; print}' > "$d/got"
+	grep -v '^#' "$W/roast/out.maf" | awk '{$1 = $1; print}' > "$d/want"
+	cmp -s "$d/want" "$d/got" || why="$why rows lost or changed"
+	result "roast name $nm" "$why"
+done
+
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]
