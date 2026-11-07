@@ -9,7 +9,7 @@
 #include "maf_order.h"
 
 #define MAX_ENTRIES 100
-#define VERSION 12
+#define VERSION 13
 
 int main(int argc, char **argv) {
     char buf[500];

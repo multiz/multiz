@@ -1,6 +1,6 @@
 // lav2maf.c -- convert a blastz output file to a .maf file
 
-#define VERSION 15
+#define VERSION 16
 
 #include "util.h"
 #include "maf.h"
