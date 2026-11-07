@@ -197,9 +197,14 @@ void native_cp(const char *from, const char *to) {
     native_note(cmd, copy_file(from, to));
 }
 
-/* grep -v: copy each line that does not contain pat anywhere, adding a newline to a last
-*  line that lacks one. grep exits 1 when it selects no line and 2 when a file cannot be
-*  read, after printing "grep: FILE: No such file or directory" (or the system's reason).
+/* The shell step was grep -v, meant to drop the MAF comment lines that name "maf" or
+*  "eof" (the ##maf header, the ##eof terminator, the programs' "# maf_project ..."
+*  lines). grep -v also dropped any data line containing the pattern, so a sequence
+*  named, for example, "xmaf1" lost its rows and left blocks short of a species. Only
+*  comment lines (those starting with '#') are dropped now. Otherwise this does what
+*  grep did: a newline is added to a last line that lacks one, the step counts as failed
+*  when no line is copied or a file cannot be read, and an unreadable file is reported
+*  as "grep: FILE: reason".
 */
 void native_grep_v_append(const char *pat, const char *in1, const char *in2, const char *out) {
     char cmd[4 * NAMESIZE_ST + 32];
@@ -235,7 +240,7 @@ void native_grep_v_append(const char *pat, const char *in1, const char *in2, con
         }
         setvbuf(in, ibuf, _IOFBF, 1 << 20);
         while ((len = getline(&line, &cap, in)) != -1) {
-            if (strstr(line, pat) != NULL)
+            if (line[0] == '#' && strstr(line, pat) != NULL)
                 continue;
             selected = 1;
             fwrite(line, 1, (size_t)len, o);
