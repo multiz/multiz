@@ -34,6 +34,9 @@ That is the whole build — no configure step, no external libraries. It produce
 18 executables in the source directory, and works with current compilers
 (gcc 15, whose default is C23).
 
+`make check` then runs the regression tests in a second or so; see
+[tests/README.md](tests/README.md).
+
 The Makefile hardcodes `CC = gcc` (`Makefile:1`), so on a system without `gcc`
 override it: `make CC=cc`. `make install` additionally needs `install` and
 `arch`, and `clean` needs `date`.

@@ -74,6 +74,9 @@ tarfile :
 	@rm -rf multiz-tba.$(DATE)
 	@echo Built tarfile multiz-tba.$(DATE).tar.gz
 
+check : $(PROGS)
+	sh tests/run.sh
+
 install :
 	mkdir -p $(INSTALLDIR); set -x; for f in $(PROGS); do $(INSTALL) $$f $(INSTALLDIR) || exit 1; done
 
