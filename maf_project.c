@@ -753,6 +753,7 @@ int main(int argc, char **argv) {
     struct name_list *n=NULL, *m=NULL;
     char  ref_chr[200];
 
+    big_buffer(stdout);
     if ( strcmp(argv[argc-1], "nohead")==0) {
         nohead = 1;
         argc--;

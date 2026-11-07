@@ -29,6 +29,15 @@ void fatalf(const char *fmt, ...) {
     exit(1);
 }
 
+/* big_buffer ----------- give a stream a 1 MiB buffer; call before any I/O on it
+*  MAF lines run to thousands of characters, so the default (st_blksize, often
+*  4 KiB) costs a system call every line or two. The buffer lives until exit.
+*/
+void big_buffer(FILE *fp) {
+    if (fp != NULL && setvbuf(fp, ckalloc(1 << 20), _IOFBF, 1 << 20) != 0)
+        fatal("cannot set stream buffer");
+}
+
 /* ckopen -------------------------------------- open file; check for success */
 FILE *ckopen(const char *name, const char *mode) {
     FILE *fp;

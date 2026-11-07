@@ -21,6 +21,7 @@ struct mafFile *mafOpen(char *fileName, int verbose) {
     mf = ckalloc(sizeof(struct mafFile));
     mf->next = NULL;
     fp = mf->fp = ckopen(fileName, "r");
+    big_buffer(fp);
     mf->alignments = NULL;
     mf->fileName = copy_string(fileName);
     mf->line_nbr = 0;
