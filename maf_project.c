@@ -570,10 +570,11 @@ static int ps_cmp(const void *x, const void *y) {
     return 0;
 }
 
+static int ps_nb;                   // blocks in ps_off
+
 static struct mafAli *ps_read(struct mafFile *mf, int blk) {
     struct mafAli *a;
-    mafSeekBlock(mf, ps_off[blk]);
-    if ((a = mafNext(mf)) == NULL)
+    if ((a = mafReadBlockAt(mf, ps_off[blk], blk + 1 < ps_nb ? ps_off[blk + 1] : -1)) == NULL)
         fatalf("cannot re-read a block of %s", mf->fileName);
     return a;
 }
@@ -647,6 +648,7 @@ static void project_stream(char *fileName, char *target, FILE *fp, maf_pos_t beg
     }
     free(line);
 
+    ps_nb = nb;
     // blocks that do not name the target: to the O file, in file order, as read
     for (i = 0; i < nb; i++)
         if (chr[i] < 0) {

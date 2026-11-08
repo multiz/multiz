@@ -4,6 +4,9 @@
 
 // mini-maf.c - Read/write maf format.  Stolen from Jim Kent & seriously abused
 #include <math.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include "util.h"
 #include "maf.h"
 #include "multi_util.h"
@@ -184,6 +187,60 @@ int mafParseS(const char *line, char *src, int srcmax, maf_pos_t *start, maf_pos
         *text++ = *p++;
     *text = '\0';
     return 6;
+}
+
+/* mafReadBlockAt: a block read out of file order used to seek mf's stream there,
+*  which discards its 1 MiB buffer and refills a full buffer to get one block of a
+*  few kilobytes; maf_project, reading roast's merged files in reference order,
+*  did that tens of thousands of times a piece. An out-of-order block is now read
+*  as exactly its bytes, with pread (which leaves the stream's position alone), and
+*  parsed by mafNext from memory. In file order it is read from the stream as before.
+*/
+struct mafAli *mafReadBlockAt(struct mafFile *mf, long off, long end) {
+    struct mafFile tmp;
+    struct mafAli *a;
+    struct stat st;
+    long long at = -1;
+    char *buf;
+    size_t len, got = 0;
+    ssize_t n;
+    int fd;
+
+    if (mf->off >= 0)
+        at = mf->off - (mf->pending != NULL ? (long long)strlen(mf->pending) : 0);
+    if (at == off || mf->fp == NULL) {
+        mafSeekBlock(mf, off);
+        return mafNext(mf);
+    }
+    fd = fileno(mf->fp);
+    if (end < 0) {
+        if (fstat(fd, &st) != 0)
+            fatalf("cannot stat %s", mf->fileName);
+        end = (long)st.st_size;
+    }
+    if (end <= off)
+        return NULL;
+    len = (size_t)(end - off);
+    buf = ckalloc(len + 1);
+    while (got < len) {
+        n = pread(fd, buf + got, len - got, (off_t)off + (off_t)got);
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0)
+            fatalf("cannot read %s", mf->fileName);
+        got += (size_t)n;
+    }
+    tmp = *mf;
+    tmp.pending = NULL;
+    tmp.off = -1;
+    if ((tmp.fp = fmemopen(buf, len, "r")) == NULL)
+        fatalf("cannot read %s", mf->fileName);
+    a = mafNext(&tmp);
+    if (tmp.fp != NULL)             // mafNext closes the stream only at end of file
+        fclose(tmp.fp);
+    free(tmp.pending);
+    free(buf);
+    return a;
 }
 
 /* mafSeekBlock: every byte read after a seek goes through get_maf_line, which
