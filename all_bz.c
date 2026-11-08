@@ -38,7 +38,7 @@ human : zfish
 #include <stdio.h>
 #include "util.h"
 
-#define VERSION 15
+#define VERSION 16
 #define TOAST_SUFFIX "toast.maf"
 #define TOAST2_SUFFIX "toast2.maf"
 #define NON_NAME " ()"

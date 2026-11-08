@@ -13,7 +13,7 @@
 #include "seq.h"
 
 #define BZ "lastz"    // we use lastz instead of blastz
-#define VERSION 14
+#define VERSION 15
 
 // replace the first argument with the new first_fn
 static char* modify_cmdline(int argc, char** argv, char* first_fn, char* second_fn, char* newcmd) {
