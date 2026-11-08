@@ -120,6 +120,42 @@ in January 2014. Its source was never published; it was reconstructed from
 UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 [`multiz`](docs/programs.md#multiz).
 
+### Changes in 11.8
+
+- **`roast` without a shell.** It used to run every step between merges —
+  `cp`, `mv`, `rm`, `grep` and each `maf_project` and `multiz` — through
+  `/bin/sh`, about 2,200 program starts and 1,100 shells on one hg38 100-way
+  piece. It now does the file steps itself and starts `maf_project` and
+  `multiz` directly, about 300 starts. A leaf's pairwise file is projected
+  where it is instead of being copied first.
+- **Faster parsing.** MAF `s` lines are read with a dedicated parser instead of
+  `sscanf`.
+- **`roast` no longer drops rows whose names contain `maf` or `eof`.** The
+  steps that remove MAF comment lines were `grep -v maf` and `grep -v eof`,
+  which also removed any alignment row whose sequence name contains either
+  string, leaving blocks short of a species without an error. Only `#` lines
+  are removed now. No name in an hg38 100-way chr21 rebuild or in a
+  217-genome *Cannabis* piece contains either string, and their output is
+  unchanged.
+- **`maf2lav` matches the first species on the minus strand.** It compared the
+  start coordinate with `'-'` instead of the strand, so it dropped those
+  alignments. `maf2lav` is not used by `roast`, `multiz` or `tba`.
+- **`make check`.** Byte-identity tests against committed 11.6 output, and
+  coordinate-shift tests; see [tests/README.md](tests/README.md).
+
+Apart from those two fixes, output is unchanged. On the same two hg38 100-way
+pieces, time falls by a further 10% and 9% against 11.7 (577 s to 518 s, and
+562 s to 509 s), and system time from about 100 s to 40 s; the deep merge,
+which `yama` dominates, is unchanged (7.08 s). `make check`, the 64-bit shift
+checks, the deep merge, a whole 217-genome piece, all seven pieces of an hg38
+100-way chr21 rebuild, UCSC's hg38 multiz5way and a five-species `tba` run all
+match 11.7 byte for byte.
+
+Program versions: every program that reads MAF files moves on — `multiz` 11.8,
+`multic` 12.7, `tba` 18, `roast` 7, `maf_project` 17, `lav2maf` 17, `maf2lav`
+16, `single_cov2` 16, `pair2tb` 15, `blastzWrapper` 14, `maf_order` 14,
+`maf2fasta` 7 and `mafFind` 6.
+
 ### Changes in 11.7
 
 - **Cheaper dynamic-programming cells.** `yama` merges symbols whose
