@@ -119,7 +119,7 @@ must be on `PATH`. (`roast` shells out to a smaller set — only `multiz`,
   inputs may contain duplicates relative to other species — use `P=multic`.
 - The temporary-directory path is limited to 460 characters; a longer one is
   refused with an error.
-- Version 17 (`tba.c:5`).
+- Version 18 (`tba.c:5`).
 
 ### roast
 
@@ -169,7 +169,7 @@ roast [+-] [R=?] [M=?] [P=?] [T=?] [X=?] [C=?] E=reference-species species-guide
   are orthologous only when the guide tree is skewed and the reference sits at
   the innermost node. These are the algorithm's designed properties as described
   in Hou (2007), §4.2.4 — they are not verified by anything in this repository.
-- Internal version 6 (`auto_mz.c:8`).
+- Internal version 7 (`auto_mz.c:8`).
 
 ---
 
@@ -203,7 +203,7 @@ when a file holds more than one.
 
 Output is in `lav` format on stdout; pipe it through [`lav2maf`](#lav2maf).
 
-Version 13 (`blastzWrapper.c:16`).
+Version 14 (`blastzWrapper.c:16`).
 
 ### multiz
 
@@ -281,7 +281,7 @@ uses its own local flag and does behave as documented.
 
 **Notes**
 
-- Version 11.7 (`multiz.c:59`). `README2` describes v10.6; 11.2 is the
+- Version 11.8 (`multiz.c:59`). `README2` describes v10.6; 11.2 is the
   2009–2019 release.
 - Before 11.3, long blocks with many rows could overflow the 32-bit
   dynamic-programming scores (silently misaligning the rest of the block, or
@@ -326,7 +326,7 @@ spanning `align_util.c:406-519`, and `align_util.c:656` is inside
 **Notes**
 
 - `multic` does **not** accept `L=` or `S=`.
-- Version 12.6 (`multic.c:35`). `README2` describes v11.1. Since 12.2 it shares the
+- Version 12.7 (`multic.c:35`). `README2` describes v11.1. Since 12.2 it shares the
   dynamic-programming fixes of multiz 11.3 (64-bit scores, `size_t` buffer
   sizes) and passes both unused streams to `pre_yama()` as `NULL`.
 
@@ -383,7 +383,7 @@ an abutting predecessor, and written. Output is identical to the in-memory path,
 which every other form still uses. On the hg38 multiz5way chrX bucket this is the
 difference between 677 MiB and 13 MiB at the final projection.
 
-Version 16 (`maf_project.c:29`). `README2` describes v10.
+Version 17 (`maf_project.c:29`). `README2` describes v10.
 
 ### maf_order
 
@@ -500,7 +500,7 @@ the same sequence files given to the aligner — they are needed to recover the
 sequence text and header metadata. Accepts `/dev/stdin`, which is how `all_bz`
 uses it.
 
-Version 16 (`lav2maf.c:3`).
+Version 17 (`lav2maf.c:3`).
 
 ### maf2lav
 
