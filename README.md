@@ -63,8 +63,10 @@ At runtime:
   by `blastzWrapper`, and therefore by `all_bz`.
 - **The installation directory must be on `PATH`.** `tba`, `roast`, and
   `all_bz` invoke other programs in the suite by bare name — see the
-  [per-driver table](docs/programs.md#external-programs-not-included) — along
-  with `cat`, `cp`, `echo`, `grep`, `mv`, `rm`, and `touch`.
+  [per-driver table](docs/programs.md#external-programs-not-included).
+  `all_bz` runs its steps as `/bin/sh` pipelines, and `blastzWrapper` calls
+  `grep`. `roast` and `tba` start their programs directly and do their own
+  file handling (since 11.8 and 11.9).
 
 Some non-default options require `toast`, `chain`, or `blastz_clean` from the
 separate TOAST distribution, which is **not** included here. The default paths

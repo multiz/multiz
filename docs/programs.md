@@ -107,11 +107,12 @@ when the list would overflow the shell's argument limit.
 named exactly by species name — it passes those names to `pair2tb` verbatim
 (`tba.c:129`). Supplying only the MAF files is not enough.
 
-**`tba` shells out** to `multiz`, `multic`, `maf_project`, `pair2tb`, and
-`get_covered`, plus `cat`, `echo`, `grep`, `mv`, `rm`, and `touch`. All of these
-must be on `PATH`. (`roast` shells out to a smaller set — only `multiz`,
-`multic`, `maf_project`, plus `cp`, `echo`, `grep`, `mv`, `rm`.) See
-[External programs](#external-programs-not-included).
+**`tba` runs** `multiz`, `multic`, `maf_project`, `pair2tb`, and
+`get_covered`, which must be on `PATH`. Since 11.9 it starts them directly
+rather than through `/bin/sh`, and does its own `cat`, `echo`, `grep -v`, `mv`,
+`rm` and `touch` steps; a command it does not recognise still goes to the
+shell. (`roast` runs only `multiz`, `multic` and `maf_project`, the same way,
+since 11.8.) See [External programs](#external-programs-not-included).
 
 **Notes**
 
@@ -169,6 +170,13 @@ roast [+-] [R=?] [M=?] [P=?] [T=?] [X=?] [C=?] E=reference-species species-guide
   are orthologous only when the guide tree is skewed and the reference sits at
   the innermost node. These are the algorithm's designed properties as described
   in Hou (2007), §4.2.4 — they are not verified by anything in this repository.
+- **The file steps between merges are done in-process** (since 11.8): the
+  moves, removals and copies, and the filters that drop the `##maf` header and
+  `##eof` lines when blocks are appended. Those filters were `grep -v maf` and
+  `grep -v eof`, which also dropped any alignment row whose sequence name
+  contains `maf` or `eof`; only `#` lines are dropped now. A leaf's pairwise
+  file is projected where it is instead of being copied first, so the `-`
+  (dry-run) listing has no `cp` lines.
 - Internal version 7 (`auto_mz.c:8`).
 
 ---
@@ -615,8 +623,9 @@ directory:
 | `roast` | `multiz`, `multic`, `maf_project` |
 | `all_bz` | `blastzWrapper`, `lav2maf`, `maf_sort`, `single_cov2` |
 
-Between them they also use the standard utilities `cat`, `cp`, `echo`, `grep`,
-`mv`, `rm`, and `touch`.
+`all_bz` also needs `/bin/sh` for its pipelines, and `blastzWrapper` calls
+`grep`. `roast` (since 11.8) and `tba` (since 11.9) do their own file
+handling and need no other utilities.
 
 ---
 
