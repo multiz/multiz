@@ -68,6 +68,16 @@ git diff --stat tests/expected
 `-g` takes the same optional directory, so expected outputs can come from
 another build.
 
+## Inputs
+
+`gen/regen.sh BUILD` rebuilds every input from scratch, then the expected
+outputs with that build. It needs python3, and lastz on `PATH` for `all_bz`.
+`gen/make_blocks.py` writes the synthetic pairs; `gen/trim.awk` cuts
+`k8l8s2` and `k3l40s1` down to two blocks (and file 2 of `k3l40s1` to the
+reference and 40 rows, without all-gap columns); `gen/make_species.py`
+writes the five species. Run with the 11.6 release and lastz 1.04.52, it
+reproduces the committed files byte for byte.
+
 ## Not here
 
 The large-data checks need data that is not in the repository and are run
