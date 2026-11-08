@@ -32,7 +32,7 @@ char* PREFIX=NULL;
 char* OPERAT=NULL;
 char* USER_PATH=NULL;
 
-static char dna_compl[256] =
+static char dna_compl[257] =	// 256 entries, filled exactly; [257] holds the literal's NUL
     "                                             -                  "
     " TVGH  CD  M KN   YSA BWXR       tvgh  cd  m kn   ysa bwxr      "
     "                                                                "

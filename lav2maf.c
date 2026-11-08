@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
 
     while (fgets(buf, 500, fp)) {
         if (same_string(buf, "s {\n")) {
-            fgets(buf, 500, fp);
+            ckfgets(buf, 500, fp, "lav input");
             if (sscanf(buf, "  \"%s %*d %*d %d %d", cur_file1, &dir1, &contig1) != 3)
                 fatalf("Wrong format, cannot find seq file or orient or contig in %s", buf);
             contig1--;
@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
             else
                 cur_file1[tmp-2]='\0';
 
-            fgets(buf, 500, fp);
+            ckfgets(buf, 500, fp, "lav input");
             if (sscanf(buf, "  \"%s %*d %*d %d %d", cur_file2, &dir2, &contig2) != 3)
                 fatalf("Wrong format, Cannot find seq file or orient or contig in %s", buf);
 
@@ -155,10 +155,10 @@ int main(int argc, char **argv) {
             */
 
         } else if (same_string(buf, "h {\n")) {
-            fgets(buf, 500, fp);
+            ckfgets(buf, 500, fp, "lav input");
             if ( parseHeader(argv[2], &(sf1->contigs[contig1]), name1, chr1, &start1, &end1, &strand1, &srcSize1) != 0)
                 fatalf("Wrong format: %s", buf);
-            fgets(buf, 500, fp);
+            ckfgets(buf, 500, fp, "lav input");
             if ( parseHeader(argv[3], &(sf2->contigs[contig2]), name2, chr2, &start2, &end2, &strand2, &srcSize2) != 0)
                 fatalf("Wrong format: %s", buf);
 
@@ -168,12 +168,12 @@ int main(int argc, char **argv) {
             c2->srcSize = srcSize2;
             if ( strcmp(name1, chr1) == 0)
                 strcpy(src1, name1);
-            else
-                sprintf(src1, "%s.%s", name1, chr1);
+            else if (snprintf(src1, sizeof src1, "%s.%s", name1, chr1) >= (int)sizeof src1)
+                fatalf("sequence name too long: %s.%s", name1, chr1);
             if ( strcmp(name2, chr2) == 0)
                 strcpy(src2, name2);
-            else
-                sprintf(src2, "%s.%s", name2, chr2);
+            else if (snprintf(src2, sizeof src2, "%s.%s", name2, chr2) >= (int)sizeof src2)
+                fatalf("sequence name too long: %s.%s", name2, chr2);
             c1->src = src1;
             c2->src = src2;
             start1--;
@@ -201,9 +201,9 @@ int main(int argc, char **argv) {
             } else // strand2=='-' && dir2==0
                 c2->strand = '-';
         } else if (same_string(buf, "a {\n")) {
-            fgets(buf, 500, fp);	// score
-            fgets(buf, 500, fp); // can't trust this b1, b2;
-            fgets(buf, 500, fp); // ditto for e1, e2
+            ckfgets(buf, 500, fp, "lav input");	// score
+            ckfgets(buf, 500, fp, "lav input"); // can't trust this b1, b2;
+            ckfgets(buf, 500, fp, "lav input"); // ditto for e1, e2
             if (sscanf(buf, "  e %lld %lld", &e1, &e2) != 2)
                 fatalf("cannot parse: %s", buf);
             if (e1 > len1)

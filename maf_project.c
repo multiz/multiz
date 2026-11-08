@@ -742,11 +742,11 @@ int main(int argc, char **argv) {
 #endif
 #endif
 
-    struct mafComp *c, *b, **location;
+    struct mafComp *c, *b;
     int i, nali, nspecies, orig_argc = argc;
     maf_pos_t beg, end;
     FILE *fp;
-    char cmd[500], *target, **species, *x;
+    char cmd[500], *target, **species;
     struct name_list *n=NULL, *m=NULL;
     char  ref_chr[200];
 
@@ -758,7 +758,6 @@ int main(int argc, char **argv) {
 
     sprintf(cmd, "maf_project.v%d", VERSION);
     argv0 = cmd;
-    x = argv[argc-1];
     if (argc == 6 || (argc == 4 && strchr(argv[3], '('))) {
         n = get_names(argv[2], argv[argc-1]);
         for (m = n, nspecies = 0; m != NULL; m = m->next)
@@ -773,7 +772,6 @@ int main(int argc, char **argv) {
     } else {
         n = NULL;
         nspecies = 0;
-        location = NULL;
         species = NULL;
     }
     if (argc == 5 && (beg = atoll(argv[3])) >= 0 &&

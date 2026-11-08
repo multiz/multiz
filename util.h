@@ -33,6 +33,7 @@ void fatalf(const char *fmt, ...);
 void fatalfr(const char *fmt, ...);
 #endif
 FILE *ckopen(const char *name, const char *mode);
+char *ckfgets(char *buf, int n, FILE *fp, const char *what);
 void big_buffer(FILE *fp);
 void ckfree(void* p);
 void *ckalloc(size_t amount);

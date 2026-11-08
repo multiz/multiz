@@ -242,6 +242,8 @@ int main(int argc, char **argv) {
             Cvalue = atoi(argv[1]+2);
             if ( Cvalue < 0 || Cvalue > 100 )
                 fatalf("%s\n", USAGE);
+            // C= is passed to multiz like R= and M=
+            /* FALLTHROUGH */
         case 'R':
         case 'M':
             //else {
