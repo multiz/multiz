@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include <spawn.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
+#include <dirent.h>
 #include "speciesTree.h"
 #include "util.h"
 #include "multi_util.h"
@@ -22,6 +24,8 @@ extern char* OPERAT;
 #define NAMESIZE_ST 500	// matches roast's NAMESIZE: temp-file names are built in buffers this size
 
 // do_cmd -- print and possible execute a command
+static int native_shell(const char *cmd);
+
 void do_cmd(const char *fmt, ...) {
     char *buf;
     va_list ap;
@@ -43,10 +47,13 @@ void do_cmd(const char *fmt, ...) {
         (void)printf("%s\n", buf);
         (void)fflush(stdout);
     }
-    if (execute)
-        if (system(buf) != 0)
-            if (force == 0)
-                fatalf("command '%s' failed", buf);
+    if (execute) {
+        int ok = native_shell(buf);   // -1: not a form it runs; the shell does, as before
+        if (ok < 0)
+            ok = (system(buf) == 0);
+        if (!ok && force == 0)
+            fatalf("command '%s' failed", buf);
+    }
     free(buf);
 }
 
@@ -370,3 +377,271 @@ NameListPtr formNameList(char* str) {
   return ret;
 }
 */
+
+/* ---------- native_shell: run the simple commands do_cmd builds without /bin/sh ----------
+*  Recognised forms (words separated by spaces or tabs, no quoting or expansion):
+*    PROGRAM ARGS... [> FILE | >> FILE]      started with posix_spawnp
+*    mv A B          rm -f FILES...          touch FILES...
+*    cat FILES... > FILE                     grep -v [-h] eof|maf FILES... > FILE | >> FILE
+*  Anything else (quotes, globs, $, pipes, other options) returns -1 and do_cmd uses
+*  the shell, as before. Returns 1 when the command succeeded and 0 when the shell
+*  version would have exited non-zero; error messages follow the tools' own wording.
+*/
+#define NS_MAXW 256
+
+static int ns_spawn(char **argv, const char *out, int append) {
+    posix_spawn_file_actions_t fa;
+    pid_t pid;
+    int status = 0, ok;
+
+    fflush(stdout);
+    fflush(stderr);
+    posix_spawn_file_actions_init(&fa);
+    if (out != NULL)
+        posix_spawn_file_actions_addopen(&fa, 1, out, O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC), 0666);
+    ok = posix_spawnp(&pid, argv[0], &fa, NULL, argv, environ) == 0;
+    if (!ok)
+        fprintf(stderr, "%s: %s\n", argv[0], strerror(errno));
+    posix_spawn_file_actions_destroy(&fa);
+    if (ok) {
+        while (waitpid(pid, &status, 0) == -1)
+            if (errno != EINTR) {
+                ok = 0;
+                break;
+            }
+        ok = ok && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
+    return ok;
+}
+
+// grep -v PAT FILES...: comment lines containing PAT go (see native_grep_v_append)
+static int ns_grep_v(const char *pat, char **in, int nin, const char *out, int append) {
+    FILE *o, *f;
+    char *line = NULL, *obuf, *ibuf;
+    size_t cap = 0;
+    ssize_t len;
+    int k, selected = 0, err = 0;
+
+    if ((o = fopen(out, append ? "a" : "w")) == NULL)
+        return 0;
+    obuf = ckalloc(1 << 20);
+    ibuf = ckalloc(1 << 20);
+    setvbuf(o, obuf, _IOFBF, 1 << 20);
+    for (k = 0; k < nin; k++) {
+        if ((f = fopen(in[k], "r")) == NULL) {
+            fprintf(stderr, "grep: %s: %s\n", in[k], strerror(errno));
+            err = 1;
+            continue;
+        }
+        setvbuf(f, ibuf, _IOFBF, 1 << 20);
+        while ((len = getline(&line, &cap, f)) != -1) {
+            if (line[0] == '#' && strstr(line, pat) != NULL)
+                continue;
+            selected = 1;
+            fwrite(line, 1, (size_t)len, o);
+            if (line[len-1] != '\n')
+                fputc('\n', o);
+        }
+        fclose(f);
+    }
+    free(line);
+    if (fclose(o) != 0)
+        err = 1;
+    free(obuf);
+    free(ibuf);
+    return !err && selected;
+}
+
+static int ns_cat(char **in, int nin, const char *out) {
+    FILE *o;
+    int k, ok = 1;
+
+    if ((o = fopen(out, "w")) == NULL)
+        return 0;
+    for (k = 0; k < nin; k++)
+        if (!append_file(in[k], o)) {
+            fprintf(stderr, "cat: %s: %s\n", in[k], strerror(errno));
+            ok = 0;
+        }
+    if (fclose(o) != 0)
+        ok = 0;
+    return ok;
+}
+
+static int ns_touch(char **f, int n) {
+    int k, fd, ok = 1;
+
+    for (k = 0; k < n; k++) {
+        if ((fd = open(f[k], O_WRONLY | O_CREAT, 0666)) < 0 || futimens(fd, NULL) != 0) {
+            fprintf(stderr, "touch: cannot touch '%s': %s\n", f[k], strerror(errno));
+            ok = 0;
+        }
+        if (fd >= 0)
+            close(fd);
+    }
+    return ok;
+}
+
+static int no_options(char **w, int from, int to) {
+    for (; from < to; from++)
+        if (w[from][0] == '-')
+            return 0;
+    return 1;
+}
+
+/* echo "TEXT" > FILE or >> FILE, when TEXT holds nothing the shell or dash's echo
+*  would interpret ($, `, \, "): writes TEXT and a newline, as the shell would. */
+static int ns_echo(const char *cmd) {
+    const char *q, *e, *t;
+    FILE *o;
+    int append, ok;
+
+    if (strncmp(cmd, "echo \"", 6) != 0)
+        return -1;
+    q = cmd + 6;
+    if ((e = strchr(q, '"')) == NULL)
+        return -1;
+    for (t = q; t < e; t++)
+        if (*t == '$' || *t == '`' || *t == '\\' || *t == '\n')
+            return -1;
+    t = e + 1;
+    if (strncmp(t, " >> ", 4) == 0) {
+        append = 1;
+        t += 4;
+    } else if (strncmp(t, " > ", 3) == 0) {
+        append = 0;
+        t += 3;
+    } else
+        return -1;
+    if (*t == '\0' || strpbrk(t, " \t\"'\\$`*?[]|;&<>(){}~\n") != NULL)
+        return -1;
+    if ((o = fopen(t, append ? "a" : "w")) == NULL)
+        return 0;
+    ok = fwrite(q, 1, (size_t)(e - q), o) == (size_t)(e - q) && fputc('\n', o) != EOF;
+    if (fclose(o) != 0)
+        ok = 0;
+    return ok;
+}
+
+/* rm DIR/PREFIX*: removes every entry of DIR whose name starts with PREFIX (and,
+*  like the shell's glob, not a hidden one unless PREFIX starts with '.'). With no
+*  match the shell would pass the word through and rm would fail; so does this. */
+static int ns_rm_glob(const char *cmd) {
+    char *path, *slash, *dir, *pre;
+    DIR *d;
+    struct dirent *ent;
+    size_t n;
+    int matched = 0, ok = 1;
+
+    if (strncmp(cmd, "rm ", 3) != 0)
+        return -1;
+    path = copy_string(cmd + 3);
+    n = strlen(path);
+    if (n < 2 || path[n-1] != '*' || strpbrk(path, " \t\"'\\$`?[]|;&<>(){}~\n") != NULL
+            || strchr(path, '*') != path + n - 1 || path[0] == '-') {
+        free(path);
+        return -1;
+    }
+    path[n-1] = '\0';
+    if ((slash = strrchr(path, '/')) != NULL) {
+        *slash = '\0';
+        dir = (slash == path) ? "/" : path;
+        pre = slash + 1;
+    } else {
+        dir = ".";
+        pre = path;
+    }
+    if ((d = opendir(dir)) != NULL) {
+        while ((ent = readdir(d)) != NULL) {
+            if (strncmp(ent->d_name, pre, strlen(pre)) != 0)
+                continue;
+            if (ent->d_name[0] == '.' && pre[0] != '.')
+                continue;
+            char *f = ckalloc(strlen(dir) + strlen(ent->d_name) + 2);
+            sprintf(f, "%s/%s", dir, ent->d_name);
+            matched = 1;
+            if (unlink(f) != 0) {
+                fprintf(stderr, "rm: cannot remove '%s': %s\n", f, strerror(errno));
+                ok = 0;
+            }
+            free(f);
+        }
+        closedir(d);
+    }
+    if (!matched) {
+        fprintf(stderr, "rm: cannot remove '%s*': No such file or directory\n", cmd[3] ? path : "");
+        ok = 0;
+    }
+    free(path);
+    return ok;
+}
+
+static int native_shell(const char *cmd) {
+    char *copy, *w[NS_MAXW + 1], *out = NULL, *tok, *save = NULL;
+    int nw = 0, append = 0, r = -1, k;
+
+    if ((r = ns_echo(cmd)) >= 0 || (r = ns_rm_glob(cmd)) >= 0)
+        return r;
+    if (strpbrk(cmd, "\"'\\$`*?[]|;&<(){}~\n") != NULL)
+        return -1;
+    copy = copy_string(cmd);
+    for (tok = strtok_r(copy, " \t", &save); tok != NULL; tok = strtok_r(NULL, " \t", &save)) {
+        if (nw == NS_MAXW || tok[0] == '#') {
+            free(copy);
+            return -1;
+        }
+        w[nw++] = tok;
+    }
+    for (k = 0; k < nw; k++)               // at most one redirection: the last two words
+        if (strchr(w[k], '>') != NULL) {
+            if (k != nw - 2 || (strcmp(w[k], ">") != 0 && strcmp(w[k], ">>") != 0)) {
+                free(copy);
+                return -1;
+            }
+            append = (w[k][1] == '>');
+            out = w[k+1];
+            nw = k;
+            break;
+        }
+    if (nw == 0) {
+        free(copy);
+        return -1;
+    }
+    w[nw] = NULL;
+    if (strcmp(w[0], "mv") == 0) {
+        if (nw == 3 && out == NULL && no_options(w, 1, nw)) {
+            r = (rename(w[1], w[2]) == 0);
+            if (!r && errno == EXDEV)
+                r = copy_file(w[1], w[2]) && unlink(w[1]) == 0;
+            if (!r)
+                fprintf(stderr, "mv: cannot move '%s' to '%s': %s\n", w[1], w[2], strerror(errno));
+        }
+    } else if (strcmp(w[0], "rm") == 0) {
+        if (nw >= 3 && out == NULL && strcmp(w[1], "-f") == 0 && no_options(w, 2, nw)) {
+            for (k = 2; k < nw; k++)
+                (void)unlink(w[k]);   // rm -f: a missing file is not an error
+            r = 1;
+        }
+    } else if (strcmp(w[0], "touch") == 0) {
+        if (nw >= 2 && out == NULL && no_options(w, 1, nw))
+            r = ns_touch(w + 1, nw - 1);
+    } else if (strcmp(w[0], "cat") == 0) {
+        if (nw >= 2 && out != NULL && !append && no_options(w, 1, nw))
+            r = ns_cat(w + 1, nw - 1, out);
+    } else if (strcmp(w[0], "grep") == 0) {
+        int i = 1, h = 0;
+        if (i < nw && strcmp(w[i], "-v") == 0) {
+            i++;
+            if (i < nw && strcmp(w[i], "-h") == 0) {
+                h = 1;
+                i++;
+            }
+            if (out != NULL && i + 1 < nw && (strcmp(w[i], "eof") == 0 || strcmp(w[i], "maf") == 0)
+                    && (h || nw - i - 1 == 1) && no_options(w, i + 1, nw))
+                r = ns_grep_v(w[i], w + i + 1, nw - i - 1, out, append);
+        }
+    } else
+        r = ns_spawn(w, out, append);
+    free(copy);
+    return r;
+}

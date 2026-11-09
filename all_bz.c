@@ -38,7 +38,7 @@ human : zfish
 #include <stdio.h>
 #include "util.h"
 
-#define VERSION 15
+#define VERSION 16
 #define TOAST_SUFFIX "toast.maf"
 #define TOAST2_SUFFIX "toast2.maf"
 #define NON_NAME " ()"
@@ -240,7 +240,8 @@ void command_pp(char* mname, char* nname) {
         sprintf(cmd, CLEAN_CMD, close_alignment, mname, nname, mname, mname, nname);
         if ( verbose)
             fprintf(stderr, "%s\n", cmd);
-        system(cmd);
+        if ( execute && system(cmd) != 0)      // it ran even in - (dry-run) mode, and failed silently
+            fatal("all_bz clean quits");
 
         sprintf(cmd, TOAST_CMD, singleton_cmd, min_cluster_chain_str, min_chain, inflation_cmd, annotation_file, mname, nname, mname, mname, nname, nname, mname, mname, nname, TOAST_SUFFIX);
         if ( verbose)

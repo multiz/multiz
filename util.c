@@ -38,6 +38,14 @@ void big_buffer(FILE *fp) {
         fatal("cannot set stream buffer");
 }
 
+/* ckfgets ---------------- read the next line of a record, or stop: a record cut
+*  short would otherwise leave the previous line in buf and be read as data. */
+char *ckfgets(char *buf, int n, FILE *fp, const char *what) {
+    if (fgets(buf, n, fp) == NULL)
+        fatalf("unexpected end of %s", what);
+    return buf;
+}
+
 /* ckopen -------------------------------------- open file; check for success */
 FILE *ckopen(const char *name, const char *mode) {
     FILE *fp;

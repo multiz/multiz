@@ -55,6 +55,14 @@ the old filter loses every `seofb` row. `smafb` guards the `maf` filter, which
 sees only blocks a merge left unused, and these inputs leave none, so it
 passes with the old filter as well.
 
+**`roast ucsc`** and **`roast ucsc name amafMis1`**: `roast E=hg38` on real
+alignments, `data/ucsc`: UCSC's hg38 pairwise alignments with allMis1,
+galGal4 and taeGut2 (from their 100-way inputs), cut to the blocks whose hg38
+row starts in chr21:5,150,000-5,199,999. The first must give the 11.6 output.
+Its merges leave unused blocks, so the second, with allMis1 renamed amafMis1,
+exercises the `maf` filter: the old filter keeps 9 of the 13 amafMis1 rows and
+writes 23 blocks instead of 24.
+
 ## Expected outputs
 
 The files in `expected/` were made by the 11.6 release. After a change that
@@ -67,6 +75,17 @@ git diff --stat tests/expected
 
 `-g` takes the same optional directory, so expected outputs can come from
 another build.
+
+## Inputs
+
+`gen/regen.sh BUILD` rebuilds every input from scratch, then the expected
+outputs with that build. It needs python3, and lastz on `PATH` for `all_bz`.
+`gen/make_blocks.py` writes the synthetic pairs; `gen/trim.awk` cuts
+`k8l8s2` and `k3l40s1` down to two blocks (and file 2 of `k3l40s1` to the
+reference and 40 rows, without all-gap columns); `gen/make_species.py`
+writes the five species. Run with the 11.6 release and lastz 1.04.52, it
+reproduces the committed files byte for byte. `data/ucsc` is an excerpt of
+UCSC's files, not generated, and `regen.sh` leaves it alone.
 
 ## Not here
 

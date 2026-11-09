@@ -63,8 +63,10 @@ At runtime:
   by `blastzWrapper`, and therefore by `all_bz`.
 - **The installation directory must be on `PATH`.** `tba`, `roast`, and
   `all_bz` invoke other programs in the suite by bare name — see the
-  [per-driver table](docs/programs.md#external-programs-not-included) — along
-  with `cat`, `cp`, `echo`, `grep`, `mv`, `rm`, and `touch`.
+  [per-driver table](docs/programs.md#external-programs-not-included).
+  `all_bz` runs its steps as `/bin/sh` pipelines, and `blastzWrapper` calls
+  `grep`. `roast` and `tba` start their programs directly and do their own
+  file handling (since 11.8 and 11.9).
 
 Some non-default options require `toast`, `chain`, or `blastz_clean` from the
 separate TOAST distribution, which is **not** included here. The default paths
@@ -119,6 +121,41 @@ by **Minmei Hou**, multiz's maintainer in the Miller Lab, which she sent to UCSC
 in January 2014. Its source was never published; it was reconstructed from
 UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 [`multiz`](docs/programs.md#multiz).
+
+### Changes in 11.9
+
+- **No shell for `roast`, almost none for `tba`.** The commands they build
+  between merges are now run in-process when they take a simple form:
+  programs are started directly, and `mv`, `rm -f`, `touch`, `cat`, `echo` and
+  the `grep -v` filters are done without `/bin/sh`. Anything else still goes
+  to the shell. On a five-species `tba` run, programs started fall from 203 to
+  63 and shells from 99 to 1; `roast` starts no shell.
+- **Faster MAF input and output.** `s` lines are written without `fprintf`, and
+  lines are read with `getline`. A block read out of file order (as
+  `maf_project` reads `roast`'s merged files) is read as exactly its bytes
+  instead of refilling a 1 MiB buffer.
+- **Failures are reported.** `blastzWrapper` and `lav2maf` stop with an error
+  when a lav record is cut short, instead of reusing the previous line.
+  `blastzWrapper` reports `lastz`'s failure, so `all_bz` stops. `all_bz`'s
+  clean step (TOAST path only) no longer runs in `-` (dry-run) mode, and its
+  failure stops the run. `lav2maf` refuses a sequence name too long for its
+  buffer instead of overflowing it.
+- **Tests and tooling.** `make check` also runs `roast` on an excerpt of UCSC's
+  hg38 alignments (24 cases), every test input can be regenerated
+  (`tests/gen`), GitHub Actions runs `make check` with gcc and clang, and a
+  `.gitignore` lists the built programs.
+
+Output on valid input is unchanged. On the two hg38 100-way pieces, time falls
+by 7% against 11.8 (486 s to 453 s, and 496 s to 462 s), and system time from
+about 37 s to 25 s. `make check`, the 64-bit shift checks, the deep merge, a
+whole 217-genome piece, all seven pieces of an hg38 100-way chr21 rebuild,
+UCSC's hg38 multiz5way and a five-species `tba` run all match 11.8 byte for
+byte.
+
+Program versions: every program that prints a version moves on — `multiz` 11.9,
+`multic` 12.8, `tba` 19, `roast` 8, `maf_project` 18, `lav2maf` 18, `maf2lav`
+17, `single_cov2` 17, `pair2tb` 16, `blastzWrapper` 15, `maf_order` 15,
+`maf2fasta` 8, `mafFind` 7 and `all_bz` 16.
 
 ### Changes in 11.8
 

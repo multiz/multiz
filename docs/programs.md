@@ -72,7 +72,7 @@ appended to it.
   `A=2` is likewise newer than the documented `A=0|1`.
 - `A=0` requires `blastz_clean` and `toast`; `A=2` additionally requires
   `chain`. None are [part of this package](#external-programs-not-included).
-- Version 15 (`all_bz.c:41`).
+- Version 16 (`all_bz.c:41`).
 
 ### tba
 
@@ -107,11 +107,12 @@ when the list would overflow the shell's argument limit.
 named exactly by species name — it passes those names to `pair2tb` verbatim
 (`tba.c:129`). Supplying only the MAF files is not enough.
 
-**`tba` shells out** to `multiz`, `multic`, `maf_project`, `pair2tb`, and
-`get_covered`, plus `cat`, `echo`, `grep`, `mv`, `rm`, and `touch`. All of these
-must be on `PATH`. (`roast` shells out to a smaller set — only `multiz`,
-`multic`, `maf_project`, plus `cp`, `echo`, `grep`, `mv`, `rm`.) See
-[External programs](#external-programs-not-included).
+**`tba` runs** `multiz`, `multic`, `maf_project`, `pair2tb`, and
+`get_covered`, which must be on `PATH`. Since 11.9 it starts them directly
+rather than through `/bin/sh`, and does its own `cat`, `echo`, `grep -v`, `mv`,
+`rm` and `touch` steps; a command it does not recognise still goes to the
+shell. (`roast` runs only `multiz`, `multic` and `maf_project`, the same way,
+since 11.8.) See [External programs](#external-programs-not-included).
 
 **Notes**
 
@@ -119,7 +120,7 @@ must be on `PATH`. (`roast` shells out to a smaller set — only `multiz`,
   inputs may contain duplicates relative to other species — use `P=multic`.
 - The temporary-directory path is limited to 460 characters; a longer one is
   refused with an error.
-- Version 18 (`tba.c:5`).
+- Version 19 (`tba.c:5`).
 
 ### roast
 
@@ -169,7 +170,14 @@ roast [+-] [R=?] [M=?] [P=?] [T=?] [X=?] [C=?] E=reference-species species-guide
   are orthologous only when the guide tree is skewed and the reference sits at
   the innermost node. These are the algorithm's designed properties as described
   in Hou (2007), §4.2.4 — they are not verified by anything in this repository.
-- Internal version 7 (`auto_mz.c:8`).
+- **The file steps between merges are done in-process** (since 11.8): the
+  moves, removals and copies, and the filters that drop the `##maf` header and
+  `##eof` lines when blocks are appended. Those filters were `grep -v maf` and
+  `grep -v eof`, which also dropped any alignment row whose sequence name
+  contains `maf` or `eof`; only `#` lines are dropped now. A leaf's pairwise
+  file is projected where it is instead of being copied first, so the `-`
+  (dry-run) listing has no `cp` lines.
+- Internal version 8 (`auto_mz.c:8`).
 
 ---
 
@@ -203,7 +211,7 @@ when a file holds more than one.
 
 Output is in `lav` format on stdout; pipe it through [`lav2maf`](#lav2maf).
 
-Version 14 (`blastzWrapper.c:16`).
+Version 15 (`blastzWrapper.c:16`).
 
 ### multiz
 
@@ -281,7 +289,7 @@ uses its own local flag and does behave as documented.
 
 **Notes**
 
-- Version 11.8 (`multiz.c:59`). `README2` describes v10.6; 11.2 is the
+- Version 11.9 (`multiz.c:59`). `README2` describes v10.6; 11.2 is the
   2009–2019 release.
 - Before 11.3, long blocks with many rows could overflow the 32-bit
   dynamic-programming scores (silently misaligning the rest of the block, or
@@ -326,7 +334,7 @@ spanning `align_util.c:406-519`, and `align_util.c:656` is inside
 **Notes**
 
 - `multic` does **not** accept `L=` or `S=`.
-- Version 12.7 (`multic.c:35`). `README2` describes v11.1. Since 12.2 it shares the
+- Version 12.8 (`multic.c:35`). `README2` describes v11.1. Since 12.2 it shares the
   dynamic-programming fixes of multiz 11.3 (64-bit scores, `size_t` buffer
   sizes) and passes both unused streams to `pre_yama()` as `NULL`.
 
@@ -383,7 +391,7 @@ an abutting predecessor, and written. Output is identical to the in-memory path,
 which every other form still uses. On the hg38 multiz5way chrX bucket this is the
 difference between 677 MiB and 13 MiB at the final projection.
 
-Version 17 (`maf_project.c:29`). `README2` describes v10.
+Version 18 (`maf_project.c:29`). `README2` describes v10.
 
 ### maf_order
 
@@ -500,7 +508,7 @@ the same sequence files given to the aligner — they are needed to recover the
 sequence text and header metadata. Accepts `/dev/stdin`, which is how `all_bz`
 uses it.
 
-Version 17 (`lav2maf.c:3`).
+Version 18 (`lav2maf.c:3`).
 
 ### maf2lav
 
@@ -615,8 +623,9 @@ directory:
 | `roast` | `multiz`, `multic`, `maf_project` |
 | `all_bz` | `blastzWrapper`, `lav2maf`, `maf_sort`, `single_cov2` |
 
-Between them they also use the standard utilities `cat`, `cp`, `echo`, `grep`,
-`mv`, `rm`, and `touch`.
+`all_bz` also needs `/bin/sh` for its pipelines, and `blastzWrapper` calls
+`grep`. `roast` (since 11.8) and `tba` (since 11.9) do their own file
+handling and need no other utilities.
 
 ---
 

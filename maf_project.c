@@ -26,7 +26,7 @@
 
 // compile with -DSTATS to get statistics about fusings of narrow blocks
 
-#define VERSION 17
+#define VERSION 18
 #define FUSE_SIZE 30	// try to fuse blocks with at most this many columns
 #define DISCARD_SIZE 20	// can discard rows of blocks at most this wide
 #define MUST_FUSE 10	// must fuse blocks with at most this many columns
@@ -570,10 +570,11 @@ static int ps_cmp(const void *x, const void *y) {
     return 0;
 }
 
+static int ps_nb;                   // blocks in ps_off
+
 static struct mafAli *ps_read(struct mafFile *mf, int blk) {
     struct mafAli *a;
-    mafSeekBlock(mf, ps_off[blk]);
-    if ((a = mafNext(mf)) == NULL)
+    if ((a = mafReadBlockAt(mf, ps_off[blk], blk + 1 < ps_nb ? ps_off[blk + 1] : -1)) == NULL)
         fatalf("cannot re-read a block of %s", mf->fileName);
     return a;
 }
@@ -647,6 +648,7 @@ static void project_stream(char *fileName, char *target, FILE *fp, maf_pos_t beg
     }
     free(line);
 
+    ps_nb = nb;
     // blocks that do not name the target: to the O file, in file order, as read
     for (i = 0; i < nb; i++)
         if (chr[i] < 0) {
@@ -742,11 +744,11 @@ int main(int argc, char **argv) {
 #endif
 #endif
 
-    struct mafComp *c, *b, **location;
+    struct mafComp *c, *b;
     int i, nali, nspecies, orig_argc = argc;
     maf_pos_t beg, end;
     FILE *fp;
-    char cmd[500], *target, **species, *x;
+    char cmd[500], *target, **species;
     struct name_list *n=NULL, *m=NULL;
     char  ref_chr[200];
 
@@ -758,7 +760,6 @@ int main(int argc, char **argv) {
 
     sprintf(cmd, "maf_project.v%d", VERSION);
     argv0 = cmd;
-    x = argv[argc-1];
     if (argc == 6 || (argc == 4 && strchr(argv[3], '('))) {
         n = get_names(argv[2], argv[argc-1]);
         for (m = n, nspecies = 0; m != NULL; m = m->next)
@@ -773,7 +774,6 @@ int main(int argc, char **argv) {
     } else {
         n = NULL;
         nspecies = 0;
-        location = NULL;
         species = NULL;
     }
     if (argc == 5 && (beg = atoll(argv[3])) >= 0 &&

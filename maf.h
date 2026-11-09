@@ -36,6 +36,10 @@ struct mafFile
 
 void mafFileFree(struct mafFile **pObj);
 void mafSeekBlock(struct mafFile *mf, long off);
+struct mafAli *mafReadBlockAt(struct mafFile *mf, long off, long end);
+/* Read the block at byte off; end is where the next block starts, or -1 for end of
+*  file. Reads through mf's stream when it is already there, else reads just
+*  [off, end) without disturbing the stream. NULL if there is no block. */
 int mafParseS(const char *line, char *src, int srcmax, maf_pos_t *start, maf_pos_t *size,
               char *strand, maf_pos_t *srcSize, char *text);
 /* Parse an 's' line as sscanf(line, "s %<srcmax>s %lld %lld %c %lld %s", ...) does,

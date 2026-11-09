@@ -341,7 +341,7 @@ Four details that generalise:
   input that decompresses to nothing.
 - **Work on local scratch.** `T=$tmp` points `roast`/`autoMZ` at `/dev/shm`.
   The job copies results out and deletes the directory.
-- **`PATH` must contain the multiz binaries**, because the driver shells out to
+- **`PATH` must contain the multiz binaries**, because the driver runs
   `multiz` and `maf_project` by bare name — hence the `set path` line.
 - **Budget real time.** The hg38 30-way took 678 cluster jobs, averaging 95
   minutes each, about 1,069 CPU hours, 22 hours wall-clock

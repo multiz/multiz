@@ -140,8 +140,7 @@ int mafIndexFirstUnused(struct mafIndex *ix) {
 struct mafAli *mafIndexRead(struct mafIndex *ix, int blk) {
     struct mafAli *a;
 
-    mafSeekBlock(ix->mf, ix->off[blk]);
-    a = mafNext(ix->mf);
+    a = mafReadBlockAt(ix->mf, ix->off[blk], blk + 1 < ix->nblocks ? ix->off[blk + 1] : -1);
     if (a == NULL)
         fatalf("cannot re-read block %d of %s", blk, ix->mf->fileName);
     if (!ix->used[blk]) {

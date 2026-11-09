@@ -4,7 +4,7 @@
 // the next two arguments are specie names, followed by a string or not:
 // "contigs+" or "contigs-", no mapping files are needed
 
-#define VERSION 15
+#define VERSION 16
 
 #include "util.h"
 #include "maf.h"

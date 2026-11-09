@@ -17,6 +17,7 @@ trap 'exit 2' HUP INT TERM
 PATH=$B:$PATH
 export PATH
 TREE="((sa sb) (sc (sd se)))"
+UTREE="((hg38 allMis1) (galGal4 taeGut2))"
 OFFSETS="2147480000 5000000000 4000000000000"
 pass=0
 fail=0
@@ -90,6 +91,15 @@ ran "$d" || why=" exit $(cat "$d/rc")"
 same "$d/out.maf" "$E/roast.maf" || why="$why out.maf differs"
 result "roast" "$why"
 
+d=$W/ucsc
+mkdir -p "$d/tmp"
+cp "$D"/ucsc/*.sing.maf "$d"
+(cd "$d" && roast T="$d/tmp" E=hg38 "$UTREE" hg38.*.sing.maf out.maf > /dev/null 2> err; echo $? > rc)
+why=
+ran "$d" || why=" exit $(cat "$d/rc")"
+same "$d/out.maf" "$E/roast-ucsc.maf" || why="$why out.maf differs"
+result "roast ucsc" "$why"
+
 d=$W/tba
 mkdir -p "$d/tmp"
 cp "$D"/tba/* "$d"
@@ -156,6 +166,25 @@ for nm in seofb smafb; do
 	cmp -s "$d/want" "$d/got" || why="$why rows lost or changed"
 	result "roast name $nm" "$why"
 done
+
+# The same on the UCSC excerpt, whose merges leave unused blocks, so the maf
+# filter sees alignment rows: allMis1 renamed amafMis1.
+nm=amafMis1
+d=$W/ucsc.$nm
+mkdir -p "$d/tmp"
+for f in "$D"/ucsc/*.sing.maf; do
+	g=$(echo "${f##*/}" | sed "s/\.allMis1\./.$nm./")
+	sed "s/^s allMis1\([ .]\)/s $nm\1/" "$f" > "$d/$g"
+done
+t=$(echo "$UTREE" | sed "s/allMis1/$nm/")
+(cd "$d" && roast T="$d/tmp" E=hg38 "$t" hg38.*.sing.maf out.maf > /dev/null 2> err; echo $? > rc)
+why=
+ran "$d" || why=" exit $(cat "$d/rc")"
+grep -q "^s $nm" "$d/out.maf" || why="$why no $nm rows in the output"
+sed "s/^s $nm\([ .]\)/s allMis1\1/" "$d/out.maf" | grep -v '^#' | awk '{$1 = $1; print}' > "$d/got"
+grep -v '^#' "$W/ucsc/out.maf" | awk '{$1 = $1; print}' > "$d/want"
+cmp -s "$d/want" "$d/got" || why="$why rows lost or changed"
+result "roast ucsc name $nm" "$why"
 
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]

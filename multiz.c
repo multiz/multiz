@@ -56,13 +56,12 @@ extern int MIN_OUTPUT_WID;
 extern int LRG_BREAK_WID;
 extern int SML_BREAK_WID;
 
-#define VERSION 11.8
+#define VERSION 11.9
 
 int multiz(struct mafStream* wk_list1, struct mafStream* wk_list2, FILE* fpw1, FILE* fpw2, int v) {
     struct mafAli *a1, *a2, *new_ali;
     maf_pos_t beg1, end1, beg2, end2, beg, end;
     int col_beg, col_end;
-    int test=0;
 
     a1 = mafStreamNext(wk_list1);
     a2 = mafStreamNext(wk_list2);
@@ -88,9 +87,6 @@ int multiz(struct mafStream* wk_list1, struct mafStream* wk_list2, FILE* fpw1, F
             continue;
         if ( a2->components->start + a2->components->size - 1 < a1->components->start)
             continue;
-
-        if ( a1->components->start == 11305 )
-            test++;
 
 
         beg1 = a1->components->start;                           // at this point, a1 a2 overlap or

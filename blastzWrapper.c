@@ -13,7 +13,7 @@
 #include "seq.h"
 
 #define BZ "lastz"    // we use lastz instead of blastz
-#define VERSION 14
+#define VERSION 15
 
 // replace the first argument with the new first_fn
 static char* modify_cmdline(int argc, char** argv, char* first_fn, char* second_fn, char* newcmd) {
@@ -35,21 +35,21 @@ void replace_reverse_bz(FILE* fpr, FILE* fpw, char* replace_str, int contig, int
     while ( fgets(buf, 1000, fpr) != NULL) {
         if ( rev==1 && strncmp(buf, "d {", 3) == 0) {
             fprintf(fpw, "%s", buf);
-            fgets(buf, 1000, fpr);
+            ckfgets(buf, 1000, fpr, "lav input");
             sscanf(buf, "  \"%s %s %s", cmd, spe1, spe2);
             fprintf(fpw, "  \"%s %s %s\n", cmd, spe2, spe1);
         } else if ( rev==1 && strncmp(buf, "h {",3)==0) {
             fprintf(fpw, "%s", buf);
-            fgets(buf1, 1000, fpr);
-            fgets(buf2, 1000, fpr);
+            ckfgets(buf1, 1000, fpr, "lav input");
+            ckfgets(buf2, 1000, fpr, "lav input");
             fprintf(fpw, "%s", buf2);
             fprintf(fpw, "%s", buf1);
         } else if ( strncmp(buf, "s {", 3) == 0) {
             fprintf(fpw, "%s", buf);
-            fgets(buf1, 1000, fpr);
+            ckfgets(buf1, 1000, fpr, "lav input");
             sscanf(buf1, "%*s %lld %lld %d %*d", &beg, &end, &dir);
             sprintf(buf1, "  \"%s\" %lld %lld %d %d\n", replace_str, beg, end, dir, contig);
-            fgets(buf2, 1000, fpr);
+            ckfgets(buf2, 1000, fpr, "lav input");
             if (rev==1) {
                 fprintf(fpw, "%s", buf2);
                 fprintf(fpw, "%s", buf1);
@@ -59,19 +59,19 @@ void replace_reverse_bz(FILE* fpr, FILE* fpw, char* replace_str, int contig, int
             }
         } else if ( rev==1 && strncmp(buf, "a {", 3)==0) {
             fprintf(fpw, "%s", buf);
-            fgets(buf, 1000, fpr);
+            ckfgets(buf, 1000, fpr, "lav input");
             fprintf(fpw, "%s", buf);  // s
-            fgets(buf, 1000, fpr);    // b
+            ckfgets(buf, 1000, fpr, "lav input");    // b
             sscanf(buf, "  b %lld %lld", &b1, &b2);
             fprintf(fpw, "  b %lld %lld\n", b2, b1);
-            fgets(buf, 1000, fpr);    // e
+            ckfgets(buf, 1000, fpr, "lav input");    // e
             sscanf(buf, "  e %lld %lld", &e1, &e2);
             fprintf(fpw, "  e %lld %lld\n", e2, e1);
-            fgets(buf, 1000, fpr);
+            ckfgets(buf, 1000, fpr, "lav input");
             while ( strncmp(buf, "  l", 3)==0) {
                 sscanf(buf, "  l %lld %lld %lld %lld %d", &b1, &b2, &e1, &e2, &pct);
                 fprintf(fpw, "  l %lld %lld %lld %lld %d\n", b2, b1, e2, e1, pct);
-                fgets(buf, 1000, fpr);
+                ckfgets(buf, 1000, fpr, "lav input");
             }
             fprintf(fpw, "%s", buf);
         } else if ( strncmp(buf, "#:eof", 5) != 0)
@@ -114,10 +114,8 @@ int main(int argc, char** argv) {
 
     if (c1 == 1) {
         modify_cmdline(argc, argv, seq_file1, seq_file2, cmdline);
-        if (reverse == 0) {
-            system(cmdline);
-            return 0;
-        }
+        if (reverse == 0)
+            return system(cmdline) == 0 ? 0 : 1;   // lastz's failure is blastzWrapper's
         pf = popen(cmdline, "r");
         replace_reverse_bz(pf, stdout, seq_file1, contig, 1);
         pclose(pf);
