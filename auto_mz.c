@@ -5,7 +5,7 @@
 #include "speciesTree.h"
 #include "mz_scores.h"
 
-#define VERSION 6
+#define VERSION 7
 
 // macro to convince gnu c compiler not to complain about unusued function
 // arguments
@@ -52,6 +52,7 @@ int contain_species(NameListPtr nlist, char* species) {
 //int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char** bz_file) {
 int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), arg_dont_complain(char** bz_file)) {
     char _right_maf[200], _left_maf[200], _middle_maf[200];
+    char fn_out[NAMESIZE], fn_in[NAMESIZE], in_left[NAMESIZE], in_right[NAMESIZE];
     NameListPtr n1, n2;
     int left, right;
 
@@ -64,57 +65,72 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
 
     n1 = x->names;
     n2 = y->names;
+    snprintf(fn_out, sizeof fn_out, "%s%s%d", PREFIX, OPERAT, id);
 
     if ( n1->next == NULL && strcmp(n1->name, REF)==0 ) {
         force = 1;
-        if ( n2->next == NULL )
-            do_cmd("grep -v eof %s.%s%s >> %s%s%d", n1->name, n2->name, SUFFIX, PREFIX, OPERAT, id);
-        else
-            do_cmd("grep -v eof %s >> %s%s%d", _right_maf, PREFIX, OPERAT, id);
-        do_cmd("rm -f %s %s", _right_maf, _left_maf);
+        if ( n2->next == NULL ) {
+            snprintf(fn_in, sizeof fn_in, "%s.%s%s", n1->name, n2->name, SUFFIX);
+            native_grep_v_append("eof", fn_in, NULL, fn_out);
+        } else
+            native_grep_v_append("eof", _right_maf, NULL, fn_out);
+        native_rm2(_right_maf, _left_maf);
         return 0;
     }
     if ( n2->next == NULL && strcmp(n2->name, REF)==0 ) {
         force = 1;
-        if ( n1->next == NULL )
-            do_cmd("grep -v eof %s.%s%s >> %s%s%d", n2->name, n1->name, SUFFIX, PREFIX, OPERAT, id);
-        else
-            do_cmd("grep -v eof %s >> %s%s%d", _left_maf, PREFIX, OPERAT, id);
-        do_cmd("rm -f %s %s", _left_maf, _right_maf);
+        if ( n1->next == NULL ) {
+            snprintf(fn_in, sizeof fn_in, "%s.%s%s", n2->name, n1->name, SUFFIX);
+            native_grep_v_append("eof", fn_in, NULL, fn_out);
+        } else
+            native_grep_v_append("eof", _left_maf, NULL, fn_out);
+        native_rm2(_left_maf, _right_maf);
         return 0;
     }
 
 
+    /* A leaf's pairwise file is projected where it is. roast used to copy it to
+    *  left/right first, but the copy was only read and then replaced below.
+    */
     if ( n1->next == NULL )
-        do_cmd("cp %s.%s%s %s", REF, n1->name, SUFFIX, _left_maf);
+        snprintf(in_left, sizeof in_left, "%s.%s%s", REF, n1->name, SUFFIX);
+    else
+        snprintf(in_left, sizeof in_left, "%s", _left_maf);
     if ( n2->next == NULL )
-        do_cmd("cp %s.%s%s %s", REF, n2->name, SUFFIX, _right_maf);
+        snprintf(in_right, sizeof in_right, "%s.%s%s", REF, n2->name, SUFFIX);
+    else
+        snprintf(in_right, sizeof in_right, "%s", _right_maf);
 
-    do_cmd(project_cmd, MP, _left_maf, REF, _MZ_O1, _MZ_U1);
-    do_cmd(project_cmd, MP, _right_maf, REF, _MZ_O2, _MZ_U2);
-    do_cmd("mv %s %s", _MZ_U1, _left_maf);
-    do_cmd("mv %s %s", _MZ_U2, _right_maf);
+    {
+        const char *pl[] = { in_left, REF, _MZ_O1, NULL }, *pr[] = { in_right, REF, _MZ_O2, NULL };
+        native_run(MP, pl, _MZ_U1, 0);
+        native_run(MP, pr, _MZ_U2, 0);
+    }
+    native_mv(_MZ_U1, _left_maf);
+    native_mv(_MZ_U2, _right_maf);
 
     left = contain_species(n1, REF);
     right = contain_species(n2, REF);
 
     if ( left==0 && right==0 ) {
-        do_cmd("%s %s %s 0 %s %s >> %s%s%d", mz, _left_maf, _right_maf, _MZ_U1, _MZ_U2, PREFIX, OPERAT, id);
+        const char *ma[] = { _left_maf, _right_maf, "0", _MZ_U1, _MZ_U2, NULL };
+        native_run(mz, ma, fn_out, 1);
         if ( n1->next == NULL && n2->next == NULL ) {
             force = 1;
-            do_cmd("grep -v -h eof %s %s >> %s%s%d", _MZ_U1, _MZ_U2, PREFIX, OPERAT, id);
+            native_grep_v_append("eof", _MZ_U1, _MZ_U2, fn_out);
             return 0;
         }
     } else {
         if ( right == 1 ) {
-            do_cmd("mv %s %s", _right_maf, _middle_maf);
-            do_cmd("mv %s %s", _left_maf, _right_maf);
-            do_cmd("mv %s %s", _middle_maf, _left_maf);
+            native_mv(_right_maf, _middle_maf);
+            native_mv(_left_maf, _right_maf);
+            native_mv(_middle_maf, _left_maf);
         }
-        do_cmd("%s %s %s 1 %s %s >> %s%s%d", mz, _left_maf, _right_maf, _MZ_U1, _MZ_U2, PREFIX, OPERAT, id);
+        const char *ma[] = { _left_maf, _right_maf, "1", _MZ_U1, _MZ_U2, NULL };
+        native_run(mz, ma, fn_out, 1);
     }
-    do_cmd("mv %s %s", _MZ_U1, _left_maf);
-    do_cmd("mv %s %s", _MZ_U2, _right_maf);
+    native_mv(_MZ_U1, _left_maf);
+    native_mv(_MZ_U2, _right_maf);
     return 0;
 }
 
@@ -294,9 +310,14 @@ int main(int argc, char **argv) {
 
     if ((p = strchr(name_list, '+')) != NULL)
         *p = ' ';
-    do_cmd("%s %s%s%d %s %s > %s", MP, PREFIX, OPERAT, id-1, REF, _MZ_O1, _MZ_U1);
+    {
+        char fn_last[NAMESIZE];
+        const char *pa[] = { fn_last, REF, _MZ_O1, NULL };
+        snprintf(fn_last, sizeof fn_last, "%s%s%d", PREFIX, OPERAT, id-1);
+        native_run(MP, pa, _MZ_U1, 0);
+    }
     force = 1;
-    do_cmd("grep -v eof %s >> %s", _MZ_U1, DESTINATION);
+    native_grep_v_append("eof", _MZ_U1, NULL, DESTINATION);
     force = 0;
     do_cmd("rm %s*", PREFIX);
     if (top > 0)

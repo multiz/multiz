@@ -119,6 +119,79 @@ unsigned long get_maf_line(char **linep, unsigned long *np, FILE *fp,
     return nn;
 }
 
+/* mafParseS: the 's' line parser. It matches what sscanf does with the format above:
+*  the leading 's' must match exactly, white space is skipped before each field,
+*  %s reads at most srcmax characters of non-white space, %lld needs at least one
+*  digit after an optional sign, and %c takes the next non-space character. It stops
+*  at the first field that fails, or after the last output the caller asked for (the
+*  first NULL pointer among start, size, strand, srcSize, text), and returns the
+*  number of fields filled, so a caller's "!= n" check behaves as before. sscanf
+*  spent a large share of a merge's run time on this line, re-reading the format
+*  string and taking locale-aware paths for every row.
+*/
+static const char *maf_skip_ws(const char *p) {
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\v' || *p == '\f' || *p == '\r')
+        ++p;
+    return p;
+}
+
+static int maf_is_ws(char ch) {
+    return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\v' || ch == '\f' || ch == '\r';
+}
+
+static const char *maf_scan_ll(const char *p, maf_pos_t *out) {
+    char *end;
+    long long v;
+
+    p = maf_skip_ws(p);
+    if (!((*p >= '0' && *p <= '9') || ((*p == '+' || *p == '-') && p[1] >= '0' && p[1] <= '9')))
+        return NULL;
+    v = strtoll(p, &end, 10);
+    *out = v;
+    return end;
+}
+
+int mafParseS(const char *line, char *src, int srcmax, maf_pos_t *start, maf_pos_t *size,
+              char *strand, maf_pos_t *srcSize, char *text) {
+    const char *p = line;
+    int n = 0, k;
+
+    if (*p++ != 's')
+        return 0;
+    p = maf_skip_ws(p);
+    for (k = 0; k < srcmax && *p != '\0' && !maf_is_ws(*p); ++k)
+        src[k] = *p++;
+    if (k == 0)
+        return 0;
+    src[k] = '\0';
+    n = 1;
+    if (start == NULL || (p = maf_scan_ll(p, start)) == NULL)
+        return n;
+    n = 2;
+    if (size == NULL || (p = maf_scan_ll(p, size)) == NULL)
+        return n;
+    n = 3;
+    if (strand == NULL)
+        return n;
+    p = maf_skip_ws(p);
+    if (*p == '\0')
+        return n;
+    *strand = *p++;
+    n = 4;
+    if (srcSize == NULL || (p = maf_scan_ll(p, srcSize)) == NULL)
+        return n;
+    n = 5;
+    if (text == NULL)
+        return n;
+    p = maf_skip_ws(p);
+    if (*p == '\0')
+        return n;
+    while (*p != '\0' && !maf_is_ws(*p))
+        *text++ = *p++;
+    *text = '\0';
+    return 6;
+}
+
 /* mafSeekBlock: every byte read after a seek goes through get_maf_line, which
 *  keeps mf->off, and the pending line is a whole line with its newline. So the
 *  next unread line starts at mf->off minus the pending line's length. A block read
@@ -233,9 +306,8 @@ struct mafAli *mafNext(struct mafFile *mf) {
         c->text = ckalloc(len*sizeof(char));
         if ( line[0] != 's' )
             continue;
-        if (sscanf(line, "s %s %lld %lld %c %lld %s",
-                   buf, &(c->start), &(c->size), &(c->strand),
-                   &(c->srcSize), c->text) != 6)
+        if (mafParseS(line, buf, (int)sizeof(buf) - 1, &(c->start), &(c->size), &(c->strand),
+                      &(c->srcSize), c->text) != 6)
             fatalf("bad component in file %s, line %d:\n%s",
                    mf->fileName, mf->line_nbr, buf);
         c->src = copy_string(buf);

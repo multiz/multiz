@@ -70,7 +70,7 @@ struct mafIndex *mafIndexBuild(char *fileName, int verbose) {
         } else if (line[0] == '\n' || line[0] == ' ')
             inblock = 0;
         else if (inblock && wantTop && line[0] == 's') {
-            if (sscanf(line, "s %499s", src) != 1)
+            if (mafParseS(line, src, 499, NULL, NULL, NULL, NULL, NULL) != 1)
                 fatalf("bad component in file %s:\n%s", fileName, line);
             wantTop = 0;
             for (c = head[hash_name(src)]; c >= 0; c = link[c])

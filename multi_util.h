@@ -101,9 +101,6 @@ void insert_ali(struct mafAli** ali_head, struct mafAli* ali);
 int compar_ali_top_start(const void* a, const void* b);
 maf_pos_t change_neg_pos(struct mafComp* comp, maf_pos_t pos);
 
-// currently break_ali cut ali with two rows
-// bp is on top component maf position, ali2 is already allocated
-void break_ali(struct mafAli* ali, maf_pos_t bp, struct mafAli* ali2);
 
 struct mafAli* retrieve_first(struct mafAli** head);
 void seperate_cp_wk(struct mafAli** cp_list, struct mafAli** wk_list, char* chr);

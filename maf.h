@@ -36,6 +36,10 @@ struct mafFile
 
 void mafFileFree(struct mafFile **pObj);
 void mafSeekBlock(struct mafFile *mf, long off);
+int mafParseS(const char *line, char *src, int srcmax, maf_pos_t *start, maf_pos_t *size,
+              char *strand, maf_pos_t *srcSize, char *text);
+/* Parse an 's' line as sscanf(line, "s %<srcmax>s %lld %lld %c %lld %s", ...) does,
+*  stopping after the last non-NULL output, and return the number of fields filled. */
 /* Position mf to read the block starting at byte off, skipping the seek when the
 *  next read (or the pending line) already starts there. */
 

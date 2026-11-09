@@ -26,7 +26,7 @@
 
 // compile with -DSTATS to get statistics about fusings of narrow blocks
 
-#define VERSION 16
+#define VERSION 17
 #define FUSE_SIZE 30	// try to fuse blocks with at most this many columns
 #define DISCARD_SIZE 20	// can discard rows of blocks at most this wide
 #define MUST_FUSE 10	// must fuse blocks with at most this many columns
@@ -620,7 +620,7 @@ static void project_stream(char *fileName, char *target, FILE *fp, maf_pos_t beg
         } else if (line[0] == '\n' || line[0] == ' ')
             inblock = 0;
         else if (inblock && !matched && line[0] == 's') {
-            if (sscanf(line, "s %499s %lld %lld %c %lld", src, &start, &size, &strand, &srcSize) != 5)
+            if (mafParseS(line, src, 499, &start, &size, &strand, &srcSize, NULL) != 5)
                 fatalf("bad component in file %s:\n%s", fileName, line);
             dot = strchr(src, '.');
             if (dot != NULL)
