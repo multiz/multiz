@@ -56,7 +56,7 @@ extern int MIN_OUTPUT_WID;
 extern int LRG_BREAK_WID;
 extern int SML_BREAK_WID;
 
-#define VERSION 11.6
+#define VERSION 11.7
 
 int multiz(struct mafStream* wk_list1, struct mafStream* wk_list2, FILE* fpw1, FILE* fpw2, int v) {
     struct mafAli *a1, *a2, *new_ali;
@@ -187,6 +187,7 @@ int main(int argc, char** argv) {
     FILE *fpw1=NULL, *fpw2=NULL;
     char ref_chr[200], cmd[200], args[2000];
 
+    big_buffer(stdout);
     sprintf(cmd, "multiz.v%.1f", VERSION);
     argv0 = cmd;
 
@@ -244,6 +245,8 @@ int main(int argc, char** argv) {
     if ( argc == 6) {
         fpw1 = fopen(argv[4], "w");
         fpw2 = fopen(argv[5], "w");
+        big_buffer(fpw1);
+        big_buffer(fpw2);
     } else
         fpw1 = fpw2 = stdout;
 

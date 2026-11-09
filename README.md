@@ -117,6 +117,31 @@ in January 2014. Its source was never published; it was reconstructed from
 UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 [`multiz`](docs/programs.md#multiz).
 
+### Changes in 11.7
+
+- **Cheaper dynamic-programming cells.** `yama` merges symbols whose
+  substitution scores are identical (upper and lower case, and every
+  non-ACGT letter under the shipped matrices), so each cell's substitution
+  sum has at most six terms and no branch. The band-edge tests move out of the
+  gap sums, and the best of the three node scores is chosen without branches.
+- **Larger stream buffers.** MAF inputs and outputs get 1 MiB buffers
+  instead of the default (often 4 KiB), which halves the system time of a
+  `roast` run. A block read in file order no longer seeks.
+
+Output is unchanged. On one deep merge from a 217-genome roast, time goes from
+10.74 s to 7.12 s against 11.6 (medians of three interleaved runs per release
+on one host). On two 5-9 Mb pieces of an hg38 100-way chr21 rebuild (99
+pairwise inputs), time falls by 33% and 36% (860 s to 577 s, and 880 s to 562
+s), and system time by about a third. The 64-bit shift checks, the deep merge,
+synthetic merges, a whole 217-genome piece, all seven pieces of an hg38 100-way
+chr21 rebuild, UCSC's hg38 multiz5way and a five-species `tba` run all match
+11.6 byte for byte.
+
+Program versions: every program that reads MAF files or aligns with `yama`
+moves on — `multiz` 11.7, `multic` 12.6, `tba` 17, `roast` 6, `maf_project` 16,
+`lav2maf` 16, `maf2lav` 15, `single_cov2` 15, `pair2tb` 14, `blastzWrapper` 13,
+`maf_order` 13, `maf2fasta` 6 and `mafFind` 5.
+
 ### Changes in 11.6
 
 - **Sequences longer than 2^31 − 1 bases.** Coordinates and sequence lengths

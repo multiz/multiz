@@ -51,6 +51,18 @@ dp_node;
 */
 #define CL(t,v) (((t)<<1)|(v))	// class of a row from two 0/1 dash flags
 
+/* The best of the paths from the C, D and I nodes, with ties going to C, then D:
+*  x if x >= y and x >= z, else y if y > z, else z. Written as selects rather than
+*  branches, since which wins is unpredictable from cell to cell.
+*/
+#define BEST3(x, y, z, V, F) do { \
+        int bx_ = ((x) >= (y)) & ((x) >= (z)), by_ = !bx_ & ((y) > (z)); \
+        (V) = bx_ ? (x) : by_ ? (y) : (z); \
+        (F) = bx_ ? FLAG_C : by_ ? FLAG_D : FLAG_I; \
+    } while (0)
+// a 4-class dot product: counts of B's row classes against one row table
+#define DOT4(g,w) ((g)[0]*(w)[0] + (g)[1]*(w)[1] + (g)[2]*(w)[2] + (g)[3]*(w)[3])
+
 typedef struct ROWTAB {
     score_t Ix[4], Iy[2], Cx[4], Cy[2], Cz[4], Dx[2], Dy, Dz[2];
 }
@@ -73,7 +85,7 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
     int i, j, k, m, m_new, n, row, col, s, t, u, v, nedit, nsym, c;
     score_t C, D, I, x, y, z, diag_c, diag_d, diag_i, Iz[4];
     int (*gb)[4], (*vb)[2], (*cnt)[4], (*ua)[2], *hist, sym[256], sym_ix[256];
-    score_t *wA;
+    score_t *wA, *Izc;
     row_tab *rt;
     size_t tback_size;    // sum of band widths; can exceed INT_MAX for long insertions
     uchar **tback_row, *tback, *tbp, st, flag_d, flag_i, flag_c, node,
@@ -121,13 +133,26 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
     /* B side: for column col, gb counts rows by (B[col-1] is '-', B[col] is
     *  '-'), vb by B[col] alone, and hist counts each symbol.
     */
+    /* Symbols whose substitution-score columns are identical (upper and lower
+    *  case, and every non-ACGT letter, under the shipped matrices) share one
+    *  class: their terms in the per-cell sum have equal weights, so summing
+    *  their counts first gives the same total with fewer terms.
+    */
     for (c = 0; c < 256; ++c)
         sym_ix[c] = -1;
     for (nsym = 0, col = 1; col <= N; ++col)
         for (j = 0; j < L; ++j)
             if (sym_ix[B[col][j]] < 0) {
-                sym_ix[B[col][j]] = nsym;
-                sym[nsym++] = B[col][j];
+                c = B[col][j];
+                for (k = 0; k < nsym; ++k) {
+                    for (i = 0; i < SS_NCHARS && SS(i, c) == SS(i, sym[k]); ++i)
+                        ;
+                    if (i == SS_NCHARS)
+                        break;
+                }
+                sym_ix[c] = k;
+                if (k == nsym)
+                    sym[nsym++] = c;
             }
     gb = ckalloc((N+1)*sizeof(*gb));
     vb = ckalloc((N+1)*sizeof(*vb));
@@ -202,6 +227,11 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
             }
     }
 
+    // The I node's own gap sum depends on the column alone.
+    Izc = ckalloc((N+1)*sizeof(score_t));
+    for (col = 1; col <= N; ++col)
+        Izc[col] = DOT4(gb[col], Iz);
+
     C = D = I = MININT;
     for (row = 1; row <= M; ++row) {
         tback_row[row] = tbp - LB[row];
@@ -230,31 +260,17 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                 *  the types of the last two nodes.
                 */
                 if (row < M) {	// not for end-gaps
-                    for (k = 0; k < 4; ++k) {
-                        if (col > LB[row-1]+1)
-                            x -= gb[col][k]*rt[row].Ix[k];
-                        if (col > LB[row]+1)
-                            z -= gb[col][k]*Iz[k];
-                    }
+                    if (col > LB[row-1]+1)
+                        x -= DOT4(gb[col], rt[row].Ix);
+                    if (col > LB[row]+1)
+                        z -= Izc[col];
                     y -= vb[col][0]*rt[row].Iy[0] + vb[col][1]*rt[row].Iy[1];
                 }
-                if (x >= y && x >= z) {
-                    /* It is best to precede the insertion
-                    *  edge with a substitution edge, i.e.,
-                    *  to reach the I node at grid point
-                    *  (row,col) from the C node at
-                    *  (row-1,col).
-                    */
-                    I = x;
-                    flag_i = FLAG_C;
-                } else if (y > z) {
-                    // It is best to come from the D node.
-                    I = y;
-                    flag_i = FLAG_D;
-                } else {
-                    I = z;
-                    flag_i = FLAG_I;
-                }
+                /* Precede the insertion edge with a substitution edge
+                *  (from the C node at (row-1,col)) if that is best,
+                *  else with a deletion edge, else with an insertion.
+                */
+                BEST3(x, y, z, I, flag_i);
                 /* Each of n non-dashes in the inserted column
                 * is aligned to K dashes.
                 */
@@ -272,28 +288,16 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                 y = diag_d;
                 z = diag_i;
                 if (col > 1) {	// no gap-open penalty at start
-                    for (k = 0; k < 4; ++k) {
-                        if (row > 1 && col > LB[row-2] + 1)
-                            x -= gb[col][k]*rt[row].Cx[k];
-                        if (col > LB[row-1] + 1)
-                            z -= gb[col][k]*rt[row].Cz[k];
-                    }
+                    if (row > 1 && col > LB[row-2] + 1)
+                        x -= DOT4(gb[col], rt[row].Cx);
+                    if (col > LB[row-1] + 1)
+                        z -= DOT4(gb[col], rt[row].Cz);
                     if (row > 1)
                         y -= vb[col][0]*rt[row].Cy[0] + vb[col][1]*rt[row].Cy[1];
                 }
-                if (x >= y && x >= z) {
-                    C = x;
-                    flag_c = FLAG_C;
-                } else if (y > z) {
-                    C = y;
-                    flag_c = FLAG_D;
-                } else {
-                    C = z;
-                    flag_c = FLAG_I;
-                }
-                for (k = 0; k < nsym; ++k)
-                    if ((n = hist[(size_t)col*nsym + k]) != 0)
-                        C += n*wA[(size_t)row*nsym + k];
+                BEST3(x, y, z, C, flag_c);
+                for (k = 0; k < nsym; ++k)	// a zero count adds zero: no branch
+                    C += hist[(size_t)col*nsym + k]*wA[(size_t)row*nsym + k];
             } else {
                 C = MININT;
                 flag_c = 0;
@@ -312,16 +316,7 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                 if (col > LB[row-1])
                     z -= vb[col][0]*rt[row].Dz[0] + vb[col][1]*rt[row].Dz[1];
             }
-            if (x >= y && x >= z) {
-                D = x;
-                flag_d = FLAG_C;
-            } else if (y > z) {
-                D = y;
-                flag_d = FLAG_D;
-            } else {
-                D = z;
-                flag_d = FLAG_I;
-            }
+            BEST3(x, y, z, D, flag_d);
             // Each of n non-dashes in the deleted column
             // is aligned to L dashes.
 
@@ -406,6 +401,7 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
     free(ua);
     free(rt);
     free(wA);
+    free(Izc);
     free(tback_row);
     free(tback);
     free(dp);

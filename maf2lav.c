@@ -7,7 +7,7 @@
 #include "mz_scores.h"
 
 #define END_RUN(x) (x == '-' || x == '\0')
-#define VERSION 14
+#define VERSION 15
 
 struct pair {
     int textSize, score;

@@ -26,7 +26,7 @@
 
 // compile with -DSTATS to get statistics about fusings of narrow blocks
 
-#define VERSION 15
+#define VERSION 16
 #define FUSE_SIZE 30	// try to fuse blocks with at most this many columns
 #define DISCARD_SIZE 20	// can discard rows of blocks at most this wide
 #define MUST_FUSE 10	// must fuse blocks with at most this many columns
@@ -572,10 +572,7 @@ static int ps_cmp(const void *x, const void *y) {
 
 static struct mafAli *ps_read(struct mafFile *mf, int blk) {
     struct mafAli *a;
-    if (fseek(mf->fp, ps_off[blk], SEEK_SET) != 0)
-        fatalf("cannot seek in %s", mf->fileName);
-    free(mf->pending);          // a line kept by the previous read belongs to wherever that
-    mf->pending = NULL;         // read stopped, not to this block
+    mafSeekBlock(mf, ps_off[blk]);
     if ((a = mafNext(mf)) == NULL)
         fatalf("cannot re-read a block of %s", mf->fileName);
     return a;
@@ -753,6 +750,7 @@ int main(int argc, char **argv) {
     struct name_list *n=NULL, *m=NULL;
     char  ref_chr[200];
 
+    big_buffer(stdout);
     if ( strcmp(argv[argc-1], "nohead")==0) {
         nohead = 1;
         argc--;

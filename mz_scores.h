@@ -12,6 +12,7 @@ extern int **ss,  // 128x128 array of substitution scores
 
 extern int gap_open, gap_extend;
 
+#define SS_NCHARS 128	// ss is SS_NCHARS x SS_NCHARS
 #define SS(c,d) ss[c][d]
 #define GAP(s,t,u,v) gop[(s<<3)+(t<<2)+(u<<1)+v]
 #define GAP2(s,t,u,v) GAP((s == '-'), (t == '-'), (u == '-'), (v == '-'))

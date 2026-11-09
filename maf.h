@@ -31,9 +31,14 @@ struct mafFile
     int verbose;
     FILE *fp; 			// Open file if any. NULL except while parsing.
     char *pending;		// an 'a' line read while finishing the previous block
+    long long off;		// byte offset of fp's next read; -1 until a seek makes it known
 };
 
 void mafFileFree(struct mafFile **pObj);
+void mafSeekBlock(struct mafFile *mf, long off);
+/* Position mf to read the block starting at byte off, skipping the seek when the
+*  next read (or the pending line) already starts there. */
+
 /* Free up a maf file including closing file handle if necessary. */
 
 struct mafAli
