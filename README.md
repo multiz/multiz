@@ -122,6 +122,31 @@ in January 2014. Its source was never published; it was reconstructed from
 UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 [`multiz`](docs/programs.md#multiz).
 
+### Changes in 11.9.1
+
+- **Two out-of-bounds reads in `multiz`'s band setup (`pre_yama`) are fixed.**
+  Both have been present since at least 2008.
+  - One read the 4 bytes before an array wherever a column of the second
+    alignment had a reference base and gaps in every other row. Under glibc
+    those bytes are always 0, so output was deterministic. Under other
+    allocators it was not: under jemalloc 11.9 crashed in 9 of 66 deep merges,
+    and under valgrind's allocator it wrote a different cannabis piece. The 0
+    is now written explicitly.
+  - One passed A's rows as 1..K instead of 0..K-1, so each column was read
+    from row 1 to the next column's row 0, and the last column past the end
+    of A's buffer.
+  - valgrind flagged 201 of 215 `multiz` processes on a 216-genome cannabis
+    piece under 11.9 (92 of them for the second read). It reports nothing
+    under 11.9.1, and 11.9.1 had no crashes in 66 jemalloc runs.
+- **Output can differ in a few blocks** where the old result depended on the
+  wrong row range. On two hg38 100-way pieces, 2 and 25 blocks changed (52 and
+  421 bp of reference). Aligned bases moved by +9 and −110 and total score fell
+  by at most 2 × 10⁻⁶. A deep merge, a 216-genome cannabis piece and
+  `make check` (gcc and clang) match 11.9 byte for byte.
+
+Program versions: only `multiz` moves, to 11.9.1. `tba` and `multic` link the
+same code, so their output can change in the same rare cases.
+
 ### Changes in 11.9
 
 - **No shell for `roast`, almost none for `tba`.** The commands they build
