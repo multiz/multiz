@@ -125,24 +125,27 @@ UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 ### Changes in 11.9.1
 
 - **Two out-of-bounds reads in `multiz`'s band setup (`pre_yama`) are fixed.**
-  Both have been present since the 2009 release.
-  - One read 4 bytes before an array wherever a column of the second
+  Both have been present since at least 2008.
+  - One read the 4 bytes before an array wherever a column of the second
     alignment had a reference base and gaps in every other row. Under glibc
-    that byte is always 0, so output was deterministic. Under other
-    allocators (jemalloc, standing in for macOS's) `multiz` could crash: 5 of
-    33 deep merges segfaulted. The 0 is now written explicitly. Output does
-    not change.
-  - One read A's rows as 1..K instead of 0..K-1, skipping the first row and
-    reading one byte past the end of its buffer. valgrind and
-    AddressSanitizer flagged it in 92 of 215 `multiz` runs on a 216-genome
-    cannabis piece, and report nothing with the fix.
-- **Output can differ in a few blocks** where the old code's result depended
-  on that byte. On two hg38 100-way pieces, 2 and 25 blocks changed (52 and
-  421 bp of reference), with no consistent gain or loss in score or aligned
-  bases. A deep merge, a 216-genome cannabis piece and `make check` match
-  11.9 byte for byte.
+    those bytes are always 0, so output was deterministic. Under other
+    allocators it was not: under jemalloc 11.9 crashed in 9 of 66 deep merges,
+    and under valgrind's allocator it wrote a different cannabis piece. The 0
+    is now written explicitly.
+  - One passed A's rows as 1..K instead of 0..K-1, so each column was read
+    from row 1 to the next column's row 0, and the last column past the end
+    of A's buffer.
+  - valgrind flagged 201 of 215 `multiz` processes on a 216-genome cannabis
+    piece under 11.9 (92 of them for the second read). It reports nothing
+    under 11.9.1, and 11.9.1 had no crashes in 66 jemalloc runs.
+- **Output can differ in a few blocks** where the old result depended on the
+  wrong row range. On two hg38 100-way pieces, 2 and 25 blocks changed (52 and
+  421 bp of reference). Aligned bases moved by +9 and −110 and total score fell
+  by at most 2 × 10⁻⁶. A deep merge, a 216-genome cannabis piece and
+  `make check` (gcc and clang) match 11.9 byte for byte.
 
-Program versions: only `multiz` moves, to 11.9.1.
+Program versions: only `multiz` moves, to 11.9.1. `tba` and `multic` link the
+same code, so their output can change in the same rare cases.
 
 ### Changes in 11.9
 
