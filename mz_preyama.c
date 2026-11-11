@@ -322,7 +322,13 @@ struct mafAli* pre_yama(struct mafAli *a1, struct mafAli* a2, maf_pos_t beg, maf
         }
         for (i=1; i<=N_cp; i++) { // walking along the original top row in a2
             tmp1 = map3[i];
-            tmp2 = map4[map2[i]];
+            /* map2[i] == -1 marks a dash column in a2's reference row.  The code used to read map4[-1] there:
+            *  4 bytes before the array, which under glibc is the high half of the chunk-size field, always 0.
+            *  Writing that 0 explicitly keeps every output byte-identical under glibc (tests/run.sh, the deep
+            *  merge, hg38 100-way pieces 03 and 04, three 216-species cannabis pieces) and stops the crashes
+            *  under other allocators (tests/allocator_check.sh: stock 11.9 segfaulted under jemalloc).  Skipping
+            *  the column, as the a1 loop above does, would change outputs; that is a separate decision. */
+            tmp2 = map2[i] == -1 ? 0 : map4[map2[i]];
             if ( tmp1 == -1 || tmp2 == -1 )
                 continue;
             if ( LB[tmp1] == 0 || LB[tmp1] > tmp2)
