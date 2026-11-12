@@ -16,6 +16,8 @@ trap 'rm -rf "$W"' EXIT
 trap 'exit 2' HUP INT TERM
 PATH=$B:$PATH
 export PATH
+# the experimental option (section 2b) must not leak into the default cases from the caller's environment
+unset MULTIZ_PREYAMA_SKIP_DASH
 TREE="((sa sb) (sc (sd se)))"
 UTREE="((hg38 allMis1) (galGal4 taeGut2))"
 OFFSETS="2147480000 5000000000 4000000000000"
@@ -109,7 +111,54 @@ why=
 same "$d/tba.maf" "$E/tba.maf" || why="$why tba.maf differs"
 result "tba" "$why"
 
+# 2b. MULTIZ_PREYAMA_SKIP_DASH, the experimental opt-in pre_yama option: roast E=hg38 on data/skipdash, an
+# excerpt of UCSC's hg38 alignments with taeGut2 and zonAlb1 in which the option changes one block. Unset and
+# empty give the default output, 1 the option's; the two expected files must differ.
+STREE="(hg38 (zonAlb1 taeGut2))"
+for m in default empty on; do
+	d=$W/skipdash.$m
+	mkdir -p "$d/tmp"
+	cp "$D"/skipdash/*.sing.maf "$d"
+	(
+		cd "$d" || exit
+		case $m in empty) MULTIZ_PREYAMA_SKIP_DASH=; export MULTIZ_PREYAMA_SKIP_DASH ;;
+		on) MULTIZ_PREYAMA_SKIP_DASH=1; export MULTIZ_PREYAMA_SKIP_DASH ;; esac
+		roast T="$d/tmp" E=hg38 "$STREE" hg38.*.sing.maf out.maf > /dev/null 2> err; echo $? > rc
+	)
+	exp=$E/roast-skipdash.default.maf
+	[ $m = on ] && exp=$E/roast-skipdash.maf
+	why=
+	ran "$d" || why=" exit $(cat "$d/rc")"
+	same "$d/out.maf" "$exp" || why="$why out.maf differs"
+	if [ $m = on ]; then
+		grep -q 'MULTIZ_PREYAMA_SKIP_DASH=1' "$d/err" || why="$why no stderr notice"
+		[ $gen = 1 ] || ! cmp -s "$E/roast-skipdash.default.maf" "$E/roast-skipdash.maf" || why="$why the option changed nothing"
+	else
+		! grep -q 'MULTIZ_PREYAMA_SKIP_DASH' "$d/err" || why="$why notice without the option"
+	fi
+	result "roast skipdash $m" "$why"
+done
+
 [ $gen = 1 ] && { echo "wrote $E"; exit 0; }
+
+# 2c. MULTIZ_PREYAMA_SKIP_DASH in multiz itself: with 1, a '#' line in the header says the option is on (the
+# default output has none); any value other than unset, empty or 1 is refused before any output.
+d=$W/skipdash.multiz
+(MULTIZ_PREYAMA_SKIP_DASH=1; export MULTIZ_PREYAMA_SKIP_DASH; multiz_run "$d" "$D/synth/k2l2s1.1.maf" "$D/synth/k2l2s1.2.maf")
+why=
+ran "$d" || why=" exit $(cat "$d/rc")"
+grep -q '^# MULTIZ_PREYAMA_SKIP_DASH=1' "$d/out.maf" || why="$why no header line"
+! grep -q 'MULTIZ_PREYAMA_SKIP_DASH' "$W/k2l2s1.fwd/out.maf" || why="$why header line in the default output"
+result "multiz skipdash header" "$why"
+for bad in yes 2 0; do
+	d=$W/skipdash.bad$bad
+	(MULTIZ_PREYAMA_SKIP_DASH=$bad; export MULTIZ_PREYAMA_SKIP_DASH; multiz_run "$d" "$D/synth/k2l2s1.1.maf" "$D/synth/k2l2s1.2.maf")
+	why=
+	[ "$(cat "$d/rc")" != 0 ] || why=" exit 0"
+	grep -q 'MULTIZ_PREYAMA_SKIP_DASH must be unset, empty or 1' "$d/err" || why="$why no error message"
+	! grep -q '^a' "$d/out.maf" || why="$why wrote blocks"
+	result "multiz skipdash rejects $bad" "$why"
+done
 
 # 3. Shift invariance: every coordinate moved past 2^31 and 2^32 must give
 # the unshifted output, moved. Needs no expected files.

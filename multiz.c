@@ -56,7 +56,7 @@ extern int MIN_OUTPUT_WID;
 extern int LRG_BREAK_WID;
 extern int SML_BREAK_WID;
 
-#define VERSION "11.9.1"
+#define VERSION "11.10"
 
 int multiz(struct mafStream* wk_list1, struct mafStream* wk_list2, FILE* fpw1, FILE* fpw2, int v) {
     struct mafAli *a1, *a2, *new_ali;
@@ -182,6 +182,7 @@ int main(int argc, char** argv) {
     int x, nohead=0, v, i, blk;
     FILE *fpw1=NULL, *fpw2=NULL;
     char ref_chr[200], cmd[200], args[2000];
+    int skip_dash;
 
     big_buffer(stdout);
     sprintf(cmd, "multiz.v%s", VERSION);
@@ -252,9 +253,13 @@ int main(int argc, char** argv) {
 
     // ---- end of processing arguments
 
+    // read (and validate) MULTIZ_PREYAMA_SKIP_DASH once, before any output
+    skip_dash = preyama_skip_dash();
     if ( nohead == 0) {
         mafWriteStart(stdout, "multiz");
         printf("# %s\n", args);
+        if (skip_dash)
+            printf("# MULTIZ_PREYAMA_SKIP_DASH=1: experimental pre_yama band setup is on\n");
     }
     init_scores70();
 

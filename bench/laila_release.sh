@@ -8,8 +8,10 @@
 #                                             also simd0/ (simd/ built -DYAMA_SIMD=0), simdsh/ (simd/ built
 #                                             -DYAMA_SHADOW) and bench/maxrss; EXTRA="dir ..." builds more trees
 #                                             of the bundle the same way as base/ and simd/
-# BUILD in `run` is base, simd, simd0, simdsh, an EXTRA tree, or simdenv0 (simd/'s binaries with YAMA_SIMD=0 in
-# the environment: the run-time override a user without AVX2 effectively gets). A simdsh run also prints
+# BUILD in `run` is base, simd, simd0, simdsh, an EXTRA tree, simdenv0 (simd/'s binaries with YAMA_SIMD=0 in
+# the environment: the run-time override a user without AVX2 effectively gets), or simdskip (simd/'s binaries with
+# MULTIZ_PREYAMA_SKIP_DASH=1, the experimental pre_yama option). KEEP=1 keeps each run's outputs in its run directory
+# (runs/KIND.BUILD.ROUND) instead of deleting them. A simdsh run also prints
 #   SHADOW kind round calls=.. rows=.. p1_vec_rows=.. p2_vec_rows=.. unfit_rows=.. bound_fallbacks=..
 # summed over every multiz process of the run (a shadow mismatch aborts the run).
 #   laila_release.sh run KIND BUILD ROUND     (in the job) one timed run; KIND deep | piece03 | cannabis
@@ -72,6 +74,7 @@ build)
 run)
 	kind=$1 build=$2 round=$3 bin=$PWD/$build
 	if [ "$build" = simdenv0 ]; then bin=$PWD/simd; export YAMA_SIMD=0; fi
+	if [ "$build" = simdskip ]; then bin=$PWD/simd; export MULTIZ_PREYAMA_SKIP_DASH=1; fi
 	d=$PWD/runs/$kind.$build.$round
 	rm -rf "$d"; mkdir -p "$d"
 	if [ "$build" = simdsh ]; then export YAMA_SHADOW_LOG=$d/shadow.log; fi
@@ -102,7 +105,7 @@ run)
 	fi
 	read -r wall user sys < <(tail -1 "$d/time") # the last line is time's; any earlier ones are the command's stderr
 	echo "RESULT $kind $build $round $wall $user $sys $dig $(cat "$d/maxrss" 2> /dev/null || echo NA)" | tee -a runs/results.txt
-	rm -rf "$d"
+	[ "${KEEP:-0}" = 1 ] || rm -rf "$d"
 	;;
 compare)
 	rc=0

@@ -63,6 +63,18 @@ Its merges leave unused blocks, so the second, with allMis1 renamed amafMis1,
 exercises the `maf` filter: the old filter keeps 9 of the 13 amafMis1 rows and
 writes 23 blocks instead of 24.
 
+**`roast skipdash default|empty|on`**, **`multiz skipdash header`** and
+**`multiz skipdash rejects VALUE`**: the experimental, opt-in
+`MULTIZ_PREYAMA_SKIP_DASH` option. `data/skipdash` is UCSC's hg38 pairwise
+alignments with taeGut2 and zonAlb1 (from their 100-way inputs), cut to the
+blocks whose hg38 row starts in chr21:16,303,000-16,307,999, where the option
+changes one block. With the variable unset or empty, `roast E=hg38` must give
+`roast-skipdash.default.maf`; with `1`, `roast-skipdash.maf` and a notice on
+stderr. The two files must differ. `multiz` with `1` must write a `#` header
+line saying the option is on, and must refuse any other value (`yes`, `2`,
+`0`) before writing a block. `run.sh` unsets the variable first, so the other
+cases always test the default.
+
 ## Expected outputs
 
 The files in `expected/` were made by the 11.6 release. After a change that

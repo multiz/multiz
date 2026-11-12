@@ -24,6 +24,11 @@
 
 struct mafAli *pre_yama(struct mafAli *a1, struct mafAli *a2, maf_pos_t beg, maf_pos_t end, int radius, int reference, FILE* fpw1, FILE* fpw2);
 
+/* MULTIZ_PREYAMA_SKIP_DASH (experimental, opt-in, may be removed): 1 if the environment variable is "1", 0 if it is
+ * unset or empty; any other value is fatal.  Read once and cached; the first call that finds it on says so on
+ * stderr.  See mz_preyama.c. */
+int preyama_skip_dash(void);
+
 struct mafAli* pre_yama2(struct mafAli* a1, struct mafAli* a2, struct mafAli* a3, maf_pos_t beg1, maf_pos_t end1, maf_pos_t begN, maf_pos_t endN, int radius, struct pwuAliFiles* pws);
 
 
