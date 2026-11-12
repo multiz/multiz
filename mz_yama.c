@@ -112,13 +112,13 @@ static const unsigned SPREAD[16] = {
 
 /* The value bounds the z3 proof of the I scan assumes (tests/simd_proof/scan_z3.py): every C, D, I value and
 *  every candidate the kernels form within [-2^62 + 2^47, 2^62 - 2^47], |Izc| <= 2^44, and eK within int.  yama()
-*  checks a sufficient condition once per call, before the first row, and runs the whole call on the scalar path
+*  checks a sufficient condition once per call, before the first row, in O(1), and runs the whole call on the scalar path
 *  if it fails.  The limits are overridable, so a test build can lower one and see the fallback taken
 *  (tests/yama_fuzz/check.sh, "bound"). */
-#ifndef YAMA_VBOUND	// (M+N) times the largest change one DP edge can make; see yama()
+#ifndef YAMA_VBOUND	// (M+N) times a bound on the change one DP edge can make; see yama()
 #define YAMA_VBOUND ((double)(1LL << 60))
 #endif
-#ifndef YAMA_ZBOUND	// max |Izc[col]|
+#ifndef YAMA_ZBOUND	// K*L*max|gop|, which bounds every |Izc[col]|
 #define YAMA_ZBOUND ((double)(1LL << 44))
 #endif
 #ifndef YAMA_EBOUND	// K*L*|gap_extend|, which bounds every eK and every D-edge extension
@@ -636,21 +636,37 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
                 cs[(6 + k)*stride + col] = hist[(size_t)col*nsym + k];
         }
         rowok = ckalloc((M+1)*sizeof(int));
-        /* The value-bound check (see YAMA_VBOUND).  Every DP value is reached from (0,0), or from a MININT sentinel,
-        *  along at most M+N edges, and one edge changes a value by at most P = L*(cmax + wmax) + |Dy| + zmax + emax:
-        *  the gap terms are counts of B's rows (summing to L) times this row's coefficients (at most cmax each),
-        *  or Dy, or Izc; the substitution sum is counts times wA (at most wmax); the extension is at most emax.  So
-        *  every value and candidate lies in [MININT - (M+N)*Pmax, (M+N)*Pmax].  With (M+N)*Pmax <= 2^60, and
-        *  MININT = -2^61, that is inside [-2^62 + 2^47, 2^62 - 2^47].  The sums are in double, whose relative
-        *  error here (a few roundings of 2^-53) cannot carry a bound of 2^60 past 2^61 - 2^47, and which cannot
-        *  overflow.  Under the shipped tables (gap open at most 600, |ss| at most 157, gap_extend at most 50) and
-        *  K = L = 216, Pmax < 2^27, and M + N < 2^32, so the check cannot fail on such input; it stops a larger
-        *  table or a far deeper input from leaving the proved range unnoticed. */
-        zmax = 0;
-        for (col = 1; col <= N; ++col)
-            zmax = MAX(zmax, dabs((double)Izc[col]));
-        emax = dabs((double)K*L*gap_extend);
-        pmax = 0;
+        /* The value-bound check (see YAMA_VBOUND), in O(1) per call.  Every DP value is reached from (0,0), or from a
+        *  MININT sentinel, along at most M+N edges, and one edge changes a value by at most
+        *      P = K*L*(gmax + smax) + K*L*gmax + K*L*gmax + K*L*|gap_extend|,
+        *  with gmax = max|gop| and smax = max|ss|.  Each row coefficient (Cx, Cy, Cz, Dx, Dz, Ix, Iy) is a sum over A's
+        *  K rows of counts times gop entries, so at most K*gmax; Dy and every Izc are at most K*L*gmax; wA is a sum of
+        *  K ss entries; and the counts of B's rows that multiply them sum to L.  So the C, D or I term of an edge is at
+        *  most K*L*gmax, its substitution sum K*L*smax, Dy or Izc K*L*gmax, and its extension K*L*|gap_extend|.
+        *  Hence every value and candidate lies in [MININT - (M+N)*P, (M+N)*P].  With (M+N)*P <= 2^60 and
+        *  MININT = -2^61 that is inside [-2^62 + 2^47, 2^62 - 2^47], and |Izc| <= zmax = K*L*gmax <= 2^44 and eK within
+        *  int follow too.  The sums are in double, whose relative error here (a few roundings of 2^-53) cannot carry a
+        *  bound of 2^60 past 2^61 - 2^47, and which cannot overflow.  Under the shipped tables (gap open at most 600,
+        *  |ss| at most 157, gap_extend at most 50) and K = L = 216, P < 2^27, and M + N < 2^32, so the check cannot
+        *  fail on such input; it stops a larger table or a far deeper input from leaving the proved range unnoticed.
+        *  (A per-row form, from each row's actual coefficients, cost 3.5-4.2% more instructions on whole runs.) */
+        {
+            static int **ss_seen;	// ss tables are built once (init_scores70/85) and never changed, so cache by table
+            static double smax;
+            double gmax = 0;
+            if (ss != ss_seen) {
+                smax = 0;
+                for (i = 0; i < SS_NCHARS; ++i)
+                    for (j = 0; j < SS_NCHARS; ++j)
+                        smax = MAX(smax, dabs((double)SS(i, j)));
+                ss_seen = ss;
+            }
+            for (k = 0; k < 16; ++k)	// gop can be changed between calls (the fuzz driver does), so read it each time
+                gmax = MAX(gmax, dabs((double)gop[k]));
+            zmax = (double)K*L*gmax;
+            emax = dabs((double)K*L*gap_extend);
+            pmax = (double)K*L*(gmax + smax) + 2*zmax + emax;
+        }
         /* The FITS32 checks keep _mm256_mul_epi32, which multiplies the low 32 bits only, exact.  Under the shipped
         *  gap table every nonzero gap-open entry is equal, so the Cx, Cz and Ix checks are implied by the Cy, Dx, Dz
         *  and Iy checks: tests/simd_mutation/real_table_checks.sh removes them at every magnitude of a real-shaped
@@ -660,15 +676,6 @@ void yama(uchar **A, int K, int M, uchar **B, int L, int N, int *LB, int *RB,
         for (row = 1; row <= M; ++row) {
             row_tab *r = rt + row;
             int ok = 1;
-            double cmax = 0, wmax = 0;
-            for (k = 0; k < 4; ++k)
-                cmax = MAX(cmax, MAX(dabs((double)r->Cx[k]), MAX(dabs((double)r->Cz[k]), dabs((double)r->Ix[k]))));
-            for (k = 0; k < 2; ++k)
-                cmax = MAX(cmax, MAX(MAX(dabs((double)r->Cy[k]), dabs((double)r->Iy[k])),
-                                     MAX(dabs((double)r->Dx[k]), dabs((double)r->Dz[k]))));
-            for (k = 0; k < nsym; ++k)
-                wmax = MAX(wmax, dabs((double)wA[(size_t)row*nsym + k]));
-            pmax = MAX(pmax, (double)L*(cmax + wmax) + dabs((double)r->Dy) + zmax + emax);
             for (k = 0; k < 4; ++k)
                 ok &= FITS32(r->Cx[k]) & FITS32(r->Cz[k]);
             for (k = 0; k < 2; ++k)
