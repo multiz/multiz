@@ -51,7 +51,7 @@ int contain_species(NameListPtr nlist, char* species) {
 
 //int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char** bz_file) {
 int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), arg_dont_complain(char** bz_file)) {
-    char _right_maf[200], _left_maf[200], _middle_maf[200];
+    char _right_maf[NAMESIZE], _left_maf[NAMESIZE], _middle_maf[NAMESIZE];
     char fn_out[NAMESIZE], fn_in[NAMESIZE], in_left[NAMESIZE], in_right[NAMESIZE];
     NameListPtr n1, n2;
     int left, right;
@@ -59,9 +59,9 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
     if ( x->names == NULL || y->names == NULL )
         fatal("mz_merge:; emtpy sub-tree");
 
-    sprintf(_middle_maf, "%smiddle.maf", PREFIX);
-    sprintf(_left_maf, "%sleft.maf%d", PREFIX, id);
-    sprintf(_right_maf, "%sright.maf%d", PREFIX, id);
+    cksnprintf(_middle_maf, sizeof _middle_maf, "%smiddle.maf", PREFIX);
+    cksnprintf(_left_maf, sizeof _left_maf, "%sleft.maf%d", PREFIX, id);
+    cksnprintf(_right_maf, sizeof _right_maf, "%sright.maf%d", PREFIX, id);
 
     n1 = x->names;
     n2 = y->names;
@@ -298,11 +298,11 @@ int main(int argc, char **argv) {
     pid = getpid();
     PREFIX = (char*)malloc(NAMESIZE*sizeof(char));
     check_tmp_dir(tmpDir);
-    sprintf(PREFIX, "%s/_%s_%d_", tmpDir, OPERAT, pid);
-    sprintf(_MZ_U1, "%sU1", PREFIX);
-    sprintf(_MZ_U2, "%sU2", PREFIX);
-    sprintf(_MZ_O1, "%sO1", PREFIX);
-    sprintf(_MZ_O2, "%sO2", PREFIX);
+    cksnprintf(PREFIX, NAMESIZE, "%s/_%s_%d_", tmpDir, OPERAT, pid);
+    cksnprintf(_MZ_U1, sizeof _MZ_U1, "%sU1", PREFIX);
+    cksnprintf(_MZ_U2, sizeof _MZ_U2, "%sU2", PREFIX);
+    cksnprintf(_MZ_O1, sizeof _MZ_O1, "%sO1", PREFIX);
+    cksnprintf(_MZ_O2, sizeof _MZ_O2, "%sO2", PREFIX);
 
     init_scores70();
 

@@ -34,6 +34,11 @@ void fatalfr(const char *fmt, ...);
 #endif
 FILE *ckopen(const char *name, const char *mode);
 void ckclose(FILE *fp, const char *what);
+void cksnprintf(char *buf, size_t n, const char *fmt, ...)
+#ifdef __GNUC__
+    __attribute__ ((format (printf, 3, 4)))
+#endif
+    ;
 char *ckfgets(char *buf, int n, FILE *fp, const char *what);
 void big_buffer(FILE *fp);
 void ckfree(void* p);

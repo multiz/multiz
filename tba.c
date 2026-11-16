@@ -101,7 +101,7 @@ static char *bz_cmd(char *x, char *y, int nbz, char **bz_file) {
     int i;
     char buf[500];
 
-    sprintf(buf, "%s.%s%s", x, y, SUFFIX);
+    cksnprintf(buf, sizeof buf, "%s.%s%s", x, y, SUFFIX);
     for (i = 0; i < nbz; ++i)
         if (same_string(buf, bz_file[i]))
             return copy_string(buf);
@@ -115,7 +115,7 @@ static int tba_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char **bz_fi
     NameListPtr n=NULL, n1, n2, prev;
     TreeNodePtr z;
     int found_cmd, single_left, single_right, single1, single2, swap=0;
-    char  tmp_cmd[200], _right_maf[200], _left_maf[200], _middle_maf[200], *cmd, *mp = MP, *p2 = P2, *gcd = GCD;
+    char  tmp_cmd[NAMESIZE], _right_maf[NAMESIZE], _left_maf[NAMESIZE], _middle_maf[NAMESIZE], *cmd, *mp = MP, *p2 = P2, *gcd = GCD;
     char _tba_head_F[NAMESIZE], _tba_head_E[NAMESIZE];
 
     if ( (n1=x->names) == NULL || (n2=y->names) == NULL )
@@ -142,9 +142,9 @@ static int tba_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char **bz_fi
                 break;
             }
 
-    sprintf(_middle_maf, "%smiddle.maf", PREFIX);
-    sprintf(_left_maf, "%sleft.maf%d", PREFIX, id);
-    sprintf(_right_maf, "%sright.maf%d", PREFIX, id);
+    cksnprintf(_middle_maf, sizeof _middle_maf, "%smiddle.maf", PREFIX);
+    cksnprintf(_left_maf, sizeof _left_maf, "%sleft.maf%d", PREFIX, id);
+    cksnprintf(_right_maf, sizeof _right_maf, "%sright.maf%d", PREFIX, id);
 
 
     if ( REF != NULL && n == NULL ) { // right-side
@@ -191,7 +191,7 @@ static int tba_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char **bz_fi
                             do_cmd("%s %s %s 1 %s %s nohead >> %s%s%d", mz, _tba_D, _tba_B, _tba_E, _tba_F, PREFIX, OPERAT, id);
                         if ( REF==NULL || strcmp(REF, n1->name) != 0 ) {
                             do_cmd("cat %shead %s > %shead_F", PREFIX, _tba_F, PREFIX);
-                            sprintf(_tba_head_F, "%shead_F", PREFIX);
+                            cksnprintf(_tba_head_F, sizeof _tba_head_F, "%shead_F", PREFIX);
                             do_cmd(project_cmd, mp, _tba_head_F, n2->name, _tba_W, _tba_H);
                             get_rid_of_top(_tba_H, _tba_F);
                         }
@@ -210,7 +210,7 @@ static int tba_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char **bz_fi
                         do_cmd("%s %s %s 1 %s %s nohead >> %s%s%d", mz, _tba_B, _tba_D, _tba_F, _tba_E, PREFIX, OPERAT, id);
                         if ( REF==NULL || strcmp(REF, n1->name) != 0) {
                             do_cmd("cat %shead %s > %shead_E", PREFIX, _tba_E, PREFIX);
-                            sprintf(_tba_head_E, "%shead_E", PREFIX);
+                            cksnprintf(_tba_head_E, sizeof _tba_head_E, "%shead_E", PREFIX);
                             do_cmd(project_cmd, mp, _tba_head_E, n1->name, _tba_T, _tba_H);
                             get_rid_of_top(_tba_H, _tba_E);
                         }
@@ -232,8 +232,8 @@ static int tba_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char **bz_fi
                     do_cmd("%s %s %s 1 %s %s nohead >> %s%s%d", mz, _tba_D, _tba_B, _tba_E, _tba_F, PREFIX, OPERAT, id);
                     if ( REF==NULL || strcmp(REF, n1->name) != 0) {
                         do_cmd("cat %shead %s > %shead_F", PREFIX, _tba_F, PREFIX);
-                        sprintf(_tba_head_F, "%shead_F", PREFIX);
-                        sprintf(tmp_cmd, "%stmp_F", PREFIX);
+                        cksnprintf(_tba_head_F, sizeof _tba_head_F, "%shead_F", PREFIX);
+                        cksnprintf(tmp_cmd, sizeof tmp_cmd, "%stmp_F", PREFIX);
                         do_cmd(project_cmd, mp, _tba_head_F, n2->name, _tba_W, tmp_cmd);
                         get_rid_of_top(tmp_cmd, _tba_F);
                     }
@@ -409,22 +409,22 @@ int main(int argc, char **argv) {
     //----------------< end of processing arguments >-----------
     PREFIX = (char*)malloc(NAMESIZE*sizeof(char));
     check_tmp_dir(tmpDir);
-    sprintf(PREFIX, "%s/_%s_%d_", tmpDir, OPERAT, pid);
-    sprintf(_tba_A, "%sA", PREFIX);
-    sprintf(_tba_B, "%sB", PREFIX);
-    sprintf(_tba_C, "%sC", PREFIX);
-    sprintf(_tba_D, "%sD", PREFIX);
-    sprintf(_tba_E, "%sE", PREFIX);
-    sprintf(_tba_F, "%sF", PREFIX);
-    sprintf(_tba_H, "%sH", PREFIX);
-    sprintf(_tba_L, "%sL", PREFIX);
-    sprintf(_tba_T, "%sT", PREFIX);
-    sprintf(_tba_W, "%sW", PREFIX);
-    sprintf(_tba_U, "%sU", PREFIX);
-    sprintf(_tba_V, "%sV", PREFIX);
-    sprintf(_tba_X, "%sX", PREFIX);
-    sprintf(_tba_Y, "%sY", PREFIX);
-    sprintf(_tba_REF, "%sREF", PREFIX);
+    cksnprintf(PREFIX, NAMESIZE, "%s/_%s_%d_", tmpDir, OPERAT, pid);
+    cksnprintf(_tba_A, sizeof _tba_A, "%sA", PREFIX);
+    cksnprintf(_tba_B, sizeof _tba_B, "%sB", PREFIX);
+    cksnprintf(_tba_C, sizeof _tba_C, "%sC", PREFIX);
+    cksnprintf(_tba_D, sizeof _tba_D, "%sD", PREFIX);
+    cksnprintf(_tba_E, sizeof _tba_E, "%sE", PREFIX);
+    cksnprintf(_tba_F, sizeof _tba_F, "%sF", PREFIX);
+    cksnprintf(_tba_H, sizeof _tba_H, "%sH", PREFIX);
+    cksnprintf(_tba_L, sizeof _tba_L, "%sL", PREFIX);
+    cksnprintf(_tba_T, sizeof _tba_T, "%sT", PREFIX);
+    cksnprintf(_tba_W, sizeof _tba_W, "%sW", PREFIX);
+    cksnprintf(_tba_U, sizeof _tba_U, "%sU", PREFIX);
+    cksnprintf(_tba_V, sizeof _tba_V, "%sV", PREFIX);
+    cksnprintf(_tba_X, sizeof _tba_X, "%sX", PREFIX);
+    cksnprintf(_tba_Y, sizeof _tba_Y, "%sY", PREFIX);
+    cksnprintf(_tba_REF, sizeof _tba_REF, "%sREF", PREFIX);
 
     init_scores70();
 

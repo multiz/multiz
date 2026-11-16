@@ -491,7 +491,12 @@ static void put_s_line(FILE *f, const char *src, int srcw, long long start, int 
 void mafWrite(FILE *f, struct mafAli *a) {
     struct mafComp *c;
     int srcChars = 0, startChars = 0, sizeChars = 0, srcSizeChars = 0, row;
-    char src[500], name[200], chr[200];
+    /* name and chr receive pieces of c->src, which can be longer than the 200 bytes these once were (the parser
+    *  allows 499 characters, and pair2tb names rows from FASTA headers). Grown as needed and kept between calls,
+    *  as mafWrite runs once per block. */
+    static char *src, *name, *chr;
+    static size_t cap;
+    size_t need_len;
 
     // A block whose score was deferred (keep_ali) is scored here, the only place it is read. The value is the
     // same mafScoreRange over the same block, so the output does not change.
@@ -526,6 +531,13 @@ void mafWrite(FILE *f, struct mafAli *a) {
         srcSizeChars = MAX(srcSizeChars, digitsBaseTen(c->srcSize));
     }
     for (c = a->components; c != NULL; c = c->next) {
+        need_len = 2 * strlen(c->src) + 2;	// name "." chr, each at most strlen(c->src)
+        if (need_len > cap) {
+            cap = need_len;
+            src = ckrealloc(src, cap);
+            name = ckrealloc(name, cap);
+            chr = ckrealloc(chr, cap);
+        }
         parseSrcName(c->src, name, chr);
         strcpy(src, name);
         if ( strcmp( name, chr) != 0) {

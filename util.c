@@ -73,6 +73,20 @@ void ckclose(FILE *fp, const char *what) {
         fatalf("error writing %s: %s", what, errno ? strerror(errno) : "write failed");
 }
 
+/* cksnprintf ------------ snprintf into buf[n]; die rather than truncate or overrun
+*  roast and tba build temporary file names in fixed buffers; a long $TMPDIR or T=
+*  overran them (an abort under fortify, silent corruption without it). */
+void cksnprintf(char *buf, size_t n, const char *fmt, ...) {
+    va_list ap;
+    int len;
+
+    va_start(ap, fmt);
+    len = vsnprintf(buf, n, fmt, ap);
+    va_end(ap);
+    if (len < 0 || (size_t)len >= n)
+        fatalf("name too long (more than %lu characters): %.80s...", (unsigned long)n - 1, buf);
+}
+
 void *ckalloc(size_t amount) {
     void *p;
 

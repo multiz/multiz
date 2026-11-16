@@ -750,7 +750,7 @@ int main(int argc, char **argv) {
     FILE *fp;
     char cmd[500], *target, **species;
     struct name_list *n=NULL, *m=NULL;
-    char  ref_chr[200];
+    char  *ref_chr;
 
     big_buffer(stdout);
     if ( strcmp(argv[argc-1], "nohead")==0) {
@@ -856,7 +856,7 @@ int main(int argc, char **argv) {
     init_scores70();
 
     while (A!=NULL) {
-        strcpy(ref_chr, A->components->src);
+        ref_chr = copy_string(A->components->src);   // any length (a fixed 200 bytes overflowed)
         B=NULL;
         for (prev=a=A; a!=NULL;a=next ) {
             next=a->next;
@@ -868,6 +868,7 @@ int main(int argc, char **argv) {
             } else
                 prev = a;
         }
+        free(ref_chr);
 
         align = mafArray(A, &nali);
         if (nali == 0)
