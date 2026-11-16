@@ -34,6 +34,22 @@ int main(void) {
                 if (gop[i])
                     gop[i] = atoi(g);
     }
+    {   /* YAMA_FUZZ_SS=f multiplies every substitution score by f.  With f near 2^23 a row's summed scores (wA in
+        *  yama) pass 32 bits while the value-bound check still lets the call take the AVX2 path, so the wA FITS32
+        *  check is the only thing sending those rows to scalar: the one case that exercises it (11.10 review). */
+        const char *f = getenv("YAMA_FUZZ_SS");
+        if (f) {
+            long long m = atoll(f);
+            int a, b;
+            for (a = 0; a < SS_NBYTES; a++)
+                for (b = 0; b < SS_NBYTES; b++) {
+                    long long v = (long long)ss[a][b] * m;
+                    if (v > INT_MAX || v < INT_MIN)
+                        fatalf("YAMA_FUZZ_SS=%s: a score leaves int", f);
+                    ss[a][b] = (int)v;
+                }
+        }
+    }
     while (scanf("%d %d", &K, &M) == 2) {
         A = (uchar **)ckalloc(M*sizeof(uchar *)) - 1;
         for (i = 1; i <= M; i++) { if (scanf("%s", buf) != 1) return 1; A[i] = (uchar *)copy_string(buf); }

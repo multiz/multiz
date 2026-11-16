@@ -16,4 +16,4 @@ jobs:
       - name: Build
         run: make CC=${{ matrix.cc }}
       - name: Test
-        run: make check
+        run: make CC=${{ matrix.cc }} check
