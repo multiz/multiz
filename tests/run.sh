@@ -256,5 +256,91 @@ grep -v '^#' "$W/ucsc/out.maf" | awk '{$1 = $1; print}' > "$d/want"
 cmp -s "$d/want" "$d/got" || why="$why rows lost or changed"
 result "roast ucsc name $nm" "$why"
 
+# 5. Failures are failures (11.10 code review): each case below exited 0, crashed or overran a buffer before.
+# None changes the output on valid input.
+
+# a failed write or an unopenable out1 is an error, not exit 0 (finding 4)
+d=$W/fail.full
+mkdir -p "$d"
+(multiz "$D/synth/k2l2s1.1.maf" "$D/synth/k2l2s1.2.maf" 0 > /dev/full 2> "$d/err"; echo $? > "$d/rc")
+why=
+[ "$(cat "$d/rc")" != 0 ] || why=" exit 0 writing to /dev/full"
+d=$W/fail.open
+mkdir -p "$d"
+(cd "$d" && multiz "$D/synth/k2l2s1.1.maf" "$D/synth/k2l2s1.2.maf" 0 "$d/no/such/U1.maf" U2.maf > out.maf 2> err; echo $? > rc)
+[ "$(cat "$d/rc")" != 0 ] || why="$why exit 0 with an unopenable out1"
+result "multiz output errors" "$why"
+
+# a sequence byte of 0x80 or above scores as N; it crashed multiz, and roast hid the crash (findings 14, 2)
+d=$W/fail.highbyte
+mkdir -p "$d"
+cp "$D"/tba/sa.*.sing.maf "$d"
+awk 'BEGIN { hi = sprintf("%c", 233) } !done && /^s se/ { n = split($0, f, " "); t = f[n]; i = match(t, /[ACGTacgt]/);
+	sub(/[^ ]*$/, substr(t, 1, i-1) hi substr(t, i+1)); done = 1 } { print }' "$D/tba/sa.se.sing.maf" > "$d/sa.se.sing.maf"
+roast_run "$d"
+why=
+cmp -s "$D/tba/sa.se.sing.maf" "$d/sa.se.sing.maf" && why=" no byte was changed"
+ran "$d" || why="$why exit $(cat "$d/rc")"
+for sp in sd se; do
+	grep -aq "^s $sp" "$d/out.maf" || why="$why no $sp rows"
+done
+result "roast high byte" "$why"
+
+# a crashed child stops roast (finding 2): multiz's first call (the (sd se) merge, after the reference-leaf merge
+# that set force) fails; later calls run the real multiz, so only the first failure can be the one reported
+d=$W/fail.child
+mkdir -p "$d/bin"
+cp "$D"/tba/sa.*.sing.maf "$d"
+printf '#!/bin/sh\n[ -e "%s/called" ] && exec "%s/multiz" "$@"\n: > "%s/called"\nexit 3\n' "$d" "$B" "$d" > "$d/bin/multiz"
+chmod +x "$d/bin/multiz"
+(PATH=$d/bin:$PATH; export PATH; roast_run "$d")
+why=
+[ "$(cat "$d/rc")" != 0 ] || why=" exit 0 after a failed multiz"
+result "roast failed child" "$why"
+
+# a headerless MAF whose first 'a' line is long (finding 5)
+d=$W/fail.headerless
+mkdir -p "$d"
+grep -v '^#' "$D/tba/sa.sb.sing.maf" | sed 's/^a score=.*/& extra=padding-padding-padding-padding/' > "$d/in.maf"
+(maf_sort "$d/in.maf" sa > "$d/out.maf" 2> "$d/err"; echo $? > "$d/rc")
+why=
+ran "$d" || why=" exit $(cat "$d/rc")"
+result "maf_sort headerless" "$why"
+
+# a 213-character row name comes out whole (finding 9)
+d=$W/fail.longname
+mkdir -p "$d"
+x=$(printf '%0210d' 0)
+sed "s/^s sb\([ .]\)/s sb.$x\1/" "$D/tba/sa.sb.sing.maf" > "$d/in.maf"
+(maf_sort "$d/in.maf" sa > "$d/out.maf" 2> "$d/err"; echo $? > "$d/rc")
+why=
+ran "$d" || why=" exit $(cat "$d/rc")"
+grep -q "^s sb\.$x " "$d/out.maf" || why="$why name changed"
+result "maf_sort long name" "$why"
+
+# a 300-character temporary directory (finding 11)
+d=$W/fail.longtmp
+mkdir -p "$d"
+cp "$D"/tba/sa.*.sing.maf "$d"
+lt=$d/$(printf '%0150d' 0)/$(printf '%0150d' 0)
+mkdir -p "$lt"
+(cd "$d" && roast T="$lt" E=sa "$TREE" sa.*.sing.maf out.maf > /dev/null 2> err; echo $? > rc)
+why=
+ran "$d" || why=" exit $(cat "$d/rc")"
+grep -v '^#' "$d/out.maf" | cmp -s - "$E/roast.maf" || why="$why out.maf differs"
+result "roast long T=" "$why"
+
+# a destination with a space is refused before anything is touched (finding 10)
+d=$W/fail.space
+mkdir -p "$d/tmp"
+cp "$D"/tba/sa.*.sing.maf "$d"
+echo keep > "$d/my"
+echo keep > "$d/out.maf"
+(cd "$d" && roast T="$d/tmp" E=sa "$TREE" sa.*.sing.maf "my out.maf" > /dev/null 2> err; echo $? > rc)
+why=
+[ "$(cat "$d/rc")" != 0 ] || why=" exit 0"
+[ "$(cat "$d/my")" = keep ] && [ "$(cat "$d/out.maf")" = keep ] || why="$why the user's files were changed"
+result "roast refuses a destination with a space" "$why"
+
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]
