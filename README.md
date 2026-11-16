@@ -139,7 +139,7 @@ UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 
 ### Changes in 11.10
 
-- **AVX2 for `yama`, about 1.5 to 1.9 times faster.** The row recurrence is
+- **AVX2 for `yama`, about 1.4 to 1.9 times faster.** The row recurrence is
   split into two passes, and on x86-64 CPUs with AVX2 the band interior of
   both is computed four columns at a time (four 64-bit lanes); the CPU is
   checked at run time, so
@@ -199,12 +199,16 @@ UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
   expected output from a failed run. `make check` now passes under gawk and
   BWK awk in a UTF-8 locale.
 
-Alignments on valid input are unchanged: `make check` (gcc and clang), the deep
-merge, a 216-genome cannabis piece and two hg38 100-way pieces match 11.9.1
-byte for byte. On laila (Xeon Gold 6330), wall time against 11.9.1 fell from
-15.2 s to 9.8 s on the deep merge, 87 s to 52 s on the cannabis piece, 1070 s
-to 648 s and 991 s to 564 s on the two hg38 pieces, and 1942 s to 1014 s on a
-median-weight 216-genome piece.
+Alignments on valid input are unchanged. `make check` (gcc and clang, and
+under AddressSanitizer and UBSan), the deep merge, a 216-genome cannabis piece
+and hg38 100-way piece 03 match 11.9.1 byte for byte, with the AVX2 build, the
+scalar build (`-DYAMA_SIMD=0`) and a shadow build that checks every AVX2 cell
+against the scalar code (419 million rows on piece 03, no mismatch). On laila
+(Xeon Gold 6330), wall time against 11.9.1 fell from 14.1 s to 8.2 s on the
+deep merge, 71 s to 42 s on the cannabis piece and 947 s to 550 s on piece 03;
+the scalar build runs at 11.9.1's speed. Before the fixes above, which leave
+`yama` alone, the AVX2 build also matched 11.9.1 on hg38 piece 04 (991 s to
+564 s) and on a median-weight 216-genome piece (1942 s to 1014 s).
 
 Program versions: every program that prints a version moves on, as all link
 the changed `util.c` and most the changed `maf.c` — `multiz` 11.10, `multic`
