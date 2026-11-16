@@ -69,14 +69,20 @@ struct mafFile *mafOpen(char *fileName, int verbose) {
 /* ------- start of code to read arbitrarily long lines and echo comments --- */
 
 //static int need(unsigned long n, char **linep, unsigned long *np) {
+/* make *linep hold at least n+1 bytes. It grew by one step, (*np >> 5) + 16, however
+*  far short it was, so mafNext's copy of a headerless file's first 'a' line (the
+*  buffer still empty) overran a 16-byte buffer (11.10 code review, finding 5). */
 int need(unsigned long n, char **linep, unsigned long *np) {
     char *p;
 
     if (*np <= n) {
-        *np += (*np >> 5) + 16;
-        if ((p = realloc(*linep, *np)) == 0)
+        unsigned long want = *np + (*np >> 5) + 16;
+        if (want <= n)
+            want = n + 1;
+        if ((p = realloc(*linep, want)) == 0)
             return -1;
         *linep = p;
+        *np = want;
     }
     return 0;
 }
