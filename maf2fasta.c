@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
     struct mafComp *c, *d;
     SEQ *sf;
     uchar *s;
-    char **row, star = '-', cmd[100], species[500], chrName[500], strand, species_name[500], chr_name[500];   // the parser allows 499-character names
+    char **row, star = '-', cmd[100], species[500], chrName[500], strand, species_name[500], chr_name[500];   // 499 characters, the MAF parser's limit (parseHeader checks)
     char *first_comp_src = NULL, *ref_src = NULL;
     struct name_rec *names, *m, *n;
     struct edge *e;
@@ -175,7 +175,7 @@ int main(int argc, char **argv) {
         end = END;
         s = SEQ_CHARS(sf);
         seq_len = SEQ_LEN(sf);
-        if (parseHeader(argv[1], sf, species, chrName, &start, &tail, &strand, &srcSize) != 0) {
+        if (parseHeader(argv[1], sf, species, chrName, sizeof species, &start, &tail, &strand, &srcSize) != 0) {
             start = 1;
             tail = srcSize = seq_len;
             strand = '+';

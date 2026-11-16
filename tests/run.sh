@@ -412,5 +412,16 @@ grep -v '^#' "$d/want.maf" > "$d/want.data"
 grep -v '^#' "$d/out.maf" | cmp -s - "$d/want.data" || why="$why output differs"
 result "maf_sort i, e and q lines" "$why"
 
+# FASTA header fields and sequence-file paths were copied unbounded into 200-byte name buffers: pair2tb (which
+# tba runs at every merge) aborted on a 350-character path or a 211-character name
+d=$W/rev.p2
+lp=$d/$(printf '%0170d' 0)/$(printf '%0170d' 0)
+mkdir -p "$lp"
+cp "$D/tba/sa" "$D/tba/sb" "$D/tba/sa.sb.sing.maf" "$lp"
+(pair2tb "$lp/sa.sb.sing.maf" "$lp/sa" "$lp/sb" > "$d/out.maf" 2> "$d/err"; echo $? > "$d/rc")
+why=
+ran "$d" || why=" exit $(cat "$d/rc")"
+result "pair2tb long sequence paths" "$why"
+
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]

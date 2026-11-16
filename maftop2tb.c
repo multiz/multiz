@@ -25,7 +25,7 @@ struct mafAli* getMafBetween(struct mafFile* mf, char* seqfile, FILE* fpw) {
     int i, nali;
     maf_pos_t j, start, end, size, flag1, flag2;
     SEQ * sf;
-    char src[500], name[200], strand, comp_name[500];
+    char src[500], name[500], strand, comp_name[1001];   // name "." src
     unsigned char* s;
     struct mafAli **A, X, *a, *cp_list, *wk_list, *prev, *last, *b, *bkup=NULL, *it;
     struct mafComp C;
@@ -43,7 +43,7 @@ struct mafAli* getMafBetween(struct mafFile* mf, char* seqfile, FILE* fpw) {
     //mf->alignments = NULL;
     while (seq_read(sf)) {
         s = SEQ_CHARS(sf);
-        if ( parseHeader(seqfile, sf, name, src, &start, &end, &strand, &size) != 0)
+        if ( parseHeader(seqfile, sf, name, src, sizeof name, &start, &end, &strand, &size) != 0)
             fatalf("Wrong format: %s", sf->header);
         //end--;   // since the end itself is not included in the seq  <-- inclusive now
         if ( cp_list == NULL) { // no alignment

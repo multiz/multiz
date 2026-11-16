@@ -15,7 +15,7 @@
 char t1[MAX_ALIGN_LEN], t2[MAX_ALIGN_LEN];
 
 int main(int argc, char **argv) {
-    char buf[500], cmd[500], chr1[500], chr2[500],  name1[200], name2[200], src1[500], src2[500], strand1, strand2, cur_file1[500], cur_file2[500];
+    char buf[500], cmd[500], chr1[500], chr2[500],  name1[500], name2[500], src1[500], src2[500], strand1, strand2, cur_file1[500], cur_file2[500];
     int k, dir1,dir2, contig1, contig2;
     int tmp;
     maf_pos_t i, j, b1, b2, e1, e2, old_e1, old_e2, len1=-1, len2=-1;
@@ -156,10 +156,10 @@ int main(int argc, char **argv) {
 
         } else if (same_string(buf, "h {\n")) {
             ckfgets(buf, 500, fp, "lav input");
-            if ( parseHeader(argv[2], &(sf1->contigs[contig1]), name1, chr1, &start1, &end1, &strand1, &srcSize1) != 0)
+            if ( parseHeader(argv[2], &(sf1->contigs[contig1]), name1, chr1, sizeof name1, &start1, &end1, &strand1, &srcSize1) != 0)
                 fatalf("Wrong format: %s", buf);
             ckfgets(buf, 500, fp, "lav input");
-            if ( parseHeader(argv[3], &(sf2->contigs[contig2]), name2, chr2, &start2, &end2, &strand2, &srcSize2) != 0)
+            if ( parseHeader(argv[3], &(sf2->contigs[contig2]), name2, chr2, sizeof name2, &start2, &end2, &strand2, &srcSize2) != 0)
                 fatalf("Wrong format: %s", buf);
 
             //need to change strand according to dir1,2, since header didn't change

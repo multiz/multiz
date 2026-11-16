@@ -134,7 +134,7 @@ void record (struct mafAli *a, struct mafComp *c1, struct mafComp *c2) {
 
 int main(int argc, char **argv) {
     SEQ *sf1, *sf2;
-    char name1[500], name2[500], *head1, *head2, species1[200], species2[200], strand1, strand2, cmd[200], chr1[200], chr2[200];
+    char name1[500], name2[500], *head1, *head2, species1[500], species2[500], strand1, strand2, cmd[200], chr1[500], chr2[500];
     struct mafFile *mf;
     struct mafAli *a;
     struct mafComp *c, *c1, *c2;
@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
     sf1 = seq_open(argv[2]);
 
     while (seq_read(sf1)) {
-        if (parseHeader(argv[2], sf1, species1, chr1, &offset1, &end1, &strand1, &srcSize1)==0) {
+        if (parseHeader(argv[2], sf1, species1, chr1, sizeof species1, &offset1, &end1, &strand1, &srcSize1)==0) {
             strcpy(name1, species1);
             if ( strcmp(species1, chr1) != 0 ) {
                 strcat(name1, ".");
@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
         n = 0;
         sf2 = seq_open(argv[3]);
         while (seq_read(sf2)) {
-            if (parseHeader(argv[3], sf2, species2, chr2, &offset2, &end2, &strand2, &srcSize2)==0) {
+            if (parseHeader(argv[3], sf2, species2, chr2, sizeof species2, &offset2, &end2, &strand2, &srcSize2)==0) {
                 strcpy(name2, species2);
                 if ( strcmp(species2, chr2) != 0) {
                     strcat(name2, ".");
