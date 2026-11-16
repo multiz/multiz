@@ -157,14 +157,16 @@ int preyama_skip_dash(void) {
             on = 0;
         else if (strcmp(e, "1") == 0) {
             on = 1;
-            fprintf(stderr, "multiz: MULTIZ_PREYAMA_SKIP_DASH=1: EXPERIMENTAL band setup in pre_yama "
+            print_argv0();      // the program's own name: multic and tba read the option too
+            fprintf(stderr, "MULTIZ_PREYAMA_SKIP_DASH=1: EXPERIMENTAL band setup in pre_yama "
                     "(reference-only columns of the second alignment are skipped); output may differ from the default\n");
         } else {
             /* Any other value is OFF, not an error. A fatal here came after multiz had truncated
             *  out1/out2, and under roast the failed child went unnoticed, so "=0" or "=yes" gave an
             *  empty alignment with exit 0 (11.10 code review, finding 1). OFF is 11.9.1's output. */
             on = 0;
-            fprintf(stderr, "multiz: MULTIZ_PREYAMA_SKIP_DASH=\"%s\" is not 1; the experimental band setup "
+            print_argv0();
+            fprintf(stderr, "MULTIZ_PREYAMA_SKIP_DASH=\"%s\" is not 1; the experimental band setup "
                     "stays off\n", e);
         }
     }

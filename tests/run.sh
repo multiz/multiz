@@ -168,7 +168,7 @@ ran "$d" || why=" exit $(cat "$d/rc")"
 grep -q '^# MULTIZ_PREYAMA_SKIP_DASH=1' "$d/out.maf" || why="$why no header line"
 ! grep -q 'MULTIZ_PREYAMA_SKIP_DASH' "$W/k2l2s1.fwd/out.maf" || why="$why header line in the default output"
 result "multiz skipdash header" "$why"
-for bad in yes 2 0; do
+for bad in yes 2 0 10; do
 	d=$W/skipdash.bad$bad
 	(MULTIZ_PREYAMA_SKIP_DASH=$bad; export MULTIZ_PREYAMA_SKIP_DASH; multiz_run "$d" "$D/synth/k2l2s1.1.maf" "$D/synth/k2l2s1.2.maf")
 	why=
@@ -180,6 +180,18 @@ for bad in yes 2 0; do
 	done
 	result "multiz skipdash $bad is off" "$why"
 done
+# multic's pre_yama honours the option too, so its output must record it: data/skipdash, where it changes a block
+d=$W/skipdash.multic
+mkdir -p "$d"
+(cd "$d" && multic "$D/skipdash/hg38.zonAlb1.sing.maf" "$D/skipdash/hg38.taeGut2.sing.maf" 0 > off.maf 2> off.err;
+	MULTIZ_PREYAMA_SKIP_DASH=1 multic "$D/skipdash/hg38.zonAlb1.sing.maf" "$D/skipdash/hg38.taeGut2.sing.maf" 0 \
+	> on.maf 2> on.err; echo $? > rc)
+why=
+[ "$(cat "$d/rc")" = 0 ] || why=" exit $(cat "$d/rc")"
+grep -q '^# MULTIZ_PREYAMA_SKIP_DASH=1' "$d/on.maf" || why="$why no header line"
+! grep -q 'MULTIZ_PREYAMA_SKIP_DASH' "$d/off.maf" || why="$why header line in the default output"
+grep -q '^multic[^:]*: MULTIZ_PREYAMA_SKIP_DASH=1' "$d/on.err" || why="$why no notice under multic's name"
+result "multic skipdash header" "$why"
 
 # 3. Shift invariance: every coordinate moved past 2^31 and 2^32 must give
 # the unshifted output, moved. Needs no expected files.

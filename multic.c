@@ -262,6 +262,7 @@ static void print_unused_ali_multic(struct aliNode* aliN, FILE* fpw) {
 int main(int argc, char** argv) {
     char USAGE[10000], *args, cmd[200], *ref_chr, x;
     size_t args_len;
+    int skip_dash;
     struct mafFile* maf;
     struct mafAli *ali, *cp_list1, *cp_list2, *wk_list1, *wk_list2;
     struct aliNode *A, *B, *aliN, *nextN;
@@ -340,6 +341,10 @@ int main(int argc, char** argv) {
     if ( v != 0 && v != 1)
         fatal("v can only be value of 0 or 1");
 
+    /* read MULTIZ_PREYAMA_SKIP_DASH before any output: multic's pre_yama honours it too, so its output
+    *  must say so, as multiz's does (it changed multic's output with nothing in the file to show it) */
+    skip_dash = preyama_skip_dash();
+
     if ( argc == 6 ) {
         // ckopen: an unopenable out1/out2 used to leave a NULL stream that silently dropped the unused blocks
         fpw[0] = ckopen(argv[4], "w");
@@ -352,6 +357,8 @@ int main(int argc, char** argv) {
     if ( nohead == 0) {
         mafWriteStart(stdout, "multih.c");
         printf("# %s\n", args);
+        if (skip_dash)
+            printf("# MULTIZ_PREYAMA_SKIP_DASH=1: experimental pre_yama band setup is on\n");
     }
 
     init_scores70();
