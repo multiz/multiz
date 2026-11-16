@@ -434,5 +434,15 @@ why=
 grep -q 'sp000000000000699' "$d/plan" || why="$why the plan never reaches the last species"
 result "roast 700-species tree (dry run)" "$why"
 
+# single_cov2 (all_bz's default post-processing) dereferenced NULL when trimming two overlapping blocks left
+# both shorter than 6 columns
+d=$W/rev.sc2
+mkdir -p "$d"
+printf '##maf version=1\na score=10\ns sa 100 7 + 1000 ACGTACG\ns sb 100 7 + 1000 ACGTACG\n\na score=10\ns sa 103 5 + 1000 TACGT\ns sb 500 5 + 1000 TACGT\n\n' > "$d/in.maf"
+(single_cov2 "$d/in.maf" > "$d/out.maf" 2> "$d/err"; echo $? > "$d/rc")
+why=
+[ "$(cat "$d/rc")" = 0 ] || why=" exit $(cat "$d/rc")"
+result "single_cov2 every block trimmed away" "$why"
+
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]

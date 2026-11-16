@@ -102,7 +102,8 @@ struct mafAli *mafOverlap(struct mafAli *a, FILE *fp) {
             alast = b;
         }
 
-    alast->next = NULL;
+    if (alast != NULL)      // every block may have been freed as too short
+        alast->next = NULL;
     free(A);
     free(min_later_beg);
     return a;
