@@ -10,6 +10,13 @@ void do_cmd(const char *fmt, ...);
 *  check_shell_word: a path or name (no white space, quotes, $ ` \ globs, | ; & < > ( ) { } ~,
 *  nor a leading -). check_shell_text: text echoed into the header (no " $ ` \ or newline). */
 void check_shell_word(const char *what, const char *s);
+
+/* make_work_dir: roast's and tba's private temporary directory, DIR/_TAG_PID_XXXXXX (mkdtemp), returned as a
+*  prefix ending in '/' for the run's file names; with execute 0 (a dry run) nothing is created. Two runs that
+*  share a T= (NFS, or containers with the same small pids) used to share file names, overwriting and deleting
+*  each other's files. remove_work_dir removes the (by then empty) directory. */
+char *make_work_dir(const char *dir, const char *tag);
+void remove_work_dir(void);
 void check_shell_text(const char *what, const char *s);
 
 /* The file steps roast and tba run between merges, done natively instead of through

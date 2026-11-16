@@ -75,6 +75,24 @@ void check_shell_text(const char *what, const char *s) {
         fatalf("%s must not contain \", $, `, \\ or a line break: %s", what, s);
 }
 
+static char *work_dir;
+
+char *make_work_dir(const char *dir, const char *tag) {
+    char *prefix = ckalloc(NAMESIZE_ST);
+
+    work_dir = ckalloc(NAMESIZE_ST);
+    cksnprintf(work_dir, NAMESIZE_ST, "%s/_%s_%ld_XXXXXX", dir, tag, (long)getpid());
+    if (execute && mkdtemp(work_dir) == NULL)
+        fatalf("cannot make a temporary directory in %s: %s", dir, strerror(errno));
+    cksnprintf(prefix, NAMESIZE_ST, "%s/", work_dir);
+    return prefix;
+}
+
+void remove_work_dir(void) {
+    if (execute && work_dir != NULL && rmdir(work_dir) != 0)
+        fprintf(stderr, "warning: cannot remove %s: %s\n", work_dir, strerror(errno));
+}
+
 /* ------------- native versions of the shell file steps (see speciesTree.h) ------------- */
 
 static void native_note(const char *cmd, int ok);
@@ -333,16 +351,16 @@ int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, in
             // children are leaves, to avoid a use of multiz.
             i = tree[top-1].id;
             j = tree[top].id;
-            snprintf(fn_left, sizeof fn_left, "%sleft.maf%d", PREFIX, *id);
-            snprintf(fn_right, sizeof fn_right, "%sright.maf%d", PREFIX, *id);
-            snprintf(fn_out, sizeof fn_out, "%s%s%d", PREFIX, OPERAT, *id);
-            snprintf(fn_head, sizeof fn_head, "%shead", PREFIX);
+            cksnprintf(fn_left, sizeof fn_left, "%sleft.maf%d", PREFIX, *id);
+            cksnprintf(fn_right, sizeof fn_right, "%sright.maf%d", PREFIX, *id);
+            cksnprintf(fn_out, sizeof fn_out, "%s%s%d", PREFIX, OPERAT, *id);
+            cksnprintf(fn_head, sizeof fn_head, "%shead", PREFIX);
             if (i >= 0) {
-                snprintf(fn_child, sizeof fn_child, "%s%s%d", PREFIX, OPERAT, i);
+                cksnprintf(fn_child, sizeof fn_child, "%s%s%d", PREFIX, OPERAT, i);
                 native_mv(fn_child, fn_left);
             }
             if (j >= 0) {
-                snprintf(fn_child, sizeof fn_child, "%s%s%d", PREFIX, OPERAT, j);
+                cksnprintf(fn_child, sizeof fn_child, "%s%s%d", PREFIX, OPERAT, j);
                 native_mv(fn_child, fn_right);
             }
             native_cp(fn_head, fn_out);

@@ -289,7 +289,6 @@ int main(int argc, char **argv) {
     char USAGE[10000], cmd[500], *big_buf, *bz_file[10000], buf[500], mzPar[500], *mzOpt;
     int i, top = -1, id = 0, nbz, X;
     TreeNode tree[1000];
-    pid_t pid;
     char *tmpDir = default_tmp_dir();     /* default for T= */
 
     sprintf(cmd, "tba.v%d", VERSION);
@@ -311,7 +310,6 @@ int main(int argc, char **argv) {
     for (i = 1; i < argc; ++i)   // every argument is echoed into the output's header
         check_shell_text("an argument", argv[i]);
 
-    pid = getpid();
     OPERAT = copy_string("tba");
 
     // the header line echoing the command: sized to fit (the old fixed buffer's
@@ -410,12 +408,11 @@ int main(int argc, char **argv) {
             bz_file[i] = argv[i+2];
     }
     //----------------< end of processing arguments >-----------
-    PREFIX = (char*)malloc(NAMESIZE*sizeof(char));
     check_tmp_dir(tmpDir);
     check_shell_word("the temporary directory (T= or $TMPDIR)", tmpDir);
     if (REF != NULL)
         check_shell_word("the reference (E=)", REF);
-    cksnprintf(PREFIX, NAMESIZE, "%s/_%s_%d_", tmpDir, OPERAT, pid);
+    PREFIX = make_work_dir(tmpDir, OPERAT);
     cksnprintf(_tba_A, sizeof _tba_A, "%sA", PREFIX);
     cksnprintf(_tba_B, sizeof _tba_B, "%sB", PREFIX);
     cksnprintf(_tba_C, sizeof _tba_C, "%sC", PREFIX);
@@ -448,6 +445,7 @@ int main(int argc, char **argv) {
     do_cmd("grep -v eof %s%s%d >> %s", PREFIX, OPERAT, id-1, DESTINATION);
     force = 0;
     do_cmd("rm %s*", PREFIX);
+    remove_work_dir();
     if (top > 0)
         fatal("tree specification contains too many '('");
     if (top != 0 || tree[0].type != 0)

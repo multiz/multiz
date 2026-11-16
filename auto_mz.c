@@ -152,7 +152,6 @@ int main(int argc, char **argv) {
     char USAGE[10000], cmd[500], *big_buf, *bz_file[10000], buf[500], mzPar[500], *mzOpt;
     int i, top = -1, id = 0, nbz, X, Cvalue=-1;
     TreeNode tree[1000];
-    pid_t pid;
     char *tmpDir = default_tmp_dir();     /* default for T= */
 
     sprintf(cmd, "roast.v%d", VERSION);
@@ -298,13 +297,11 @@ int main(int argc, char **argv) {
     }
     //----------------< end of processing arguments >-----------
     OPERAT = copy_string("MZ");
-    pid = getpid();
-    PREFIX = (char*)malloc(NAMESIZE*sizeof(char));
     check_tmp_dir(tmpDir);
     check_shell_word("the temporary directory (T= or $TMPDIR)", tmpDir);
     if (REF != NULL)
         check_shell_word("the reference (E=)", REF);
-    cksnprintf(PREFIX, NAMESIZE, "%s/_%s_%d_", tmpDir, OPERAT, pid);
+    PREFIX = make_work_dir(tmpDir, OPERAT);
     cksnprintf(_MZ_U1, sizeof _MZ_U1, "%sU1", PREFIX);
     cksnprintf(_MZ_U2, sizeof _MZ_U2, "%sU2", PREFIX);
     cksnprintf(_MZ_O1, sizeof _MZ_O1, "%sO1", PREFIX);
@@ -329,6 +326,7 @@ int main(int argc, char **argv) {
     native_grep_v_append("eof", _MZ_U1, NULL, DESTINATION);
     force = 0;
     do_cmd("rm %s*", PREFIX);
+    remove_work_dir();
     if (top > 0)
         fatal("tree specification contains too many '('");
     if (top != 0 || tree[0].type != 0)

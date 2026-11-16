@@ -474,5 +474,24 @@ for y in sy1 sy2; do
 done
 result "blastzWrapper reports a failed lastz" "$why"
 
+# each roast works in its own mkdtemp directory under T= (file names were T= plus the pid, so two runs sharing
+# a T= from different containers could clobber each other): two at once in one T= must both give the expected
+# output, and T= must be left holding only what was there before
+d=$W/rev.workdir
+mkdir -p "$d/a" "$d/b" "$d/tmp"
+cp "$D"/tba/sa.*.sing.maf "$d/a"
+cp "$D"/tba/sa.*.sing.maf "$d/b"
+echo keep > "$d/tmp/_MZ_planted"
+(cd "$d/a" && roast T="$d/tmp" E=sa "$TREE" sa.*.sing.maf out.maf > /dev/null 2> err; echo $? > rc) &
+(cd "$d/b" && roast T="$d/tmp" E=sa "$TREE" sa.*.sing.maf out.maf > /dev/null 2> err; echo $? > rc)
+wait
+why=
+for r in a b; do
+	ran "$d/$r" || why="$why $r: exit $(cat "$d/$r/rc")"
+	grep -v '^#' "$d/$r/out.maf" | cmp -s - "$E/roast.maf" || why="$why $r: out.maf differs"
+done
+[ "$(ls "$d/tmp")" = _MZ_planted ] && [ "$(cat "$d/tmp/_MZ_planted")" = keep ] || why="$why T= not left as it was: $(ls "$d/tmp" | tr '\n' ' ')"
+result "roast work directory" "$why"
+
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]
