@@ -493,5 +493,38 @@ done
 [ "$(ls "$d/tmp")" = _MZ_planted ] && [ "$(cat "$d/tmp/_MZ_planted")" = keep ] || why="$why T= not left as it was: $(ls "$d/tmp" | tr '\n' ' ')"
 result "roast work directory" "$why"
 
+# the same with the reference as the RIGHT leaf of its merge, so the force=1 that leaks is the other branch's;
+# multiz's first and second calls fail in turn (11.9.1 exits 0 with both). The second call follows a merge of
+# two non-reference leaves, which set force too.
+for n in 1 2; do
+	d=$W/rev.child$n
+	mkdir -p "$d/bin" "$d/tmp"
+	cp "$D"/tba/sa.*.sing.maf "$d"
+	printf '#!/bin/sh\nc=$(cat "%s/n" 2> /dev/null || echo 0); c=$((c + 1)); echo $c > "%s/n"\n[ $c = %s ] && exit 3\nexec "%s/multiz" "$@"\n' \
+		"$d" "$d" $n "$B" > "$d/bin/multiz"
+	chmod +x "$d/bin/multiz"
+	(cd "$d" && PATH=$d/bin:$PATH roast T="$d/tmp" E=sa "((sb sa) (sc (sd se)))" sa.*.sing.maf out.maf > /dev/null 2> err;
+		echo $? > rc)
+	why=
+	[ "$(cat "$d/rc")" != 0 ] || why=" exit 0 after multiz call $n failed"
+	result "roast failed child, reference on the right, call $n" "$why"
+done
+
+# refused before anything runs: T= with a space or ~, a destination or E= starting with '-', and an argument
+# with $ (echoed into the header, it reached /bin/sh). A planted file must survive each.
+d=$W/rev.words
+mkdir -p "$d/tmp" "$d/sp ace" "$d/t~1"
+cp "$D"/tba/sa.*.sing.maf "$d"
+echo keep > "$d/-x.maf"
+why=
+for args in "T=$d/sp ace|E=sa|$TREE|out.maf" "T=$d/t~1|E=sa|$TREE|out.maf" "T=$d/tmp|E=sa|$TREE|-x.maf" \
+		"T=$d/tmp|E=-sa|$TREE|out.maf" "T=$d/tmp|E=sa|$TREE \$HOME|out.maf"; do
+	(cd "$d" && IFS='|' && set -f && set -- $args && roast "$1" "$2" "$3" sa.*.sing.maf "$4" > /dev/null 2> err; echo $? > rc)
+	[ "$(cat "$d/rc")" != 0 ] || why="$why accepted [$args]"
+	grep -q 'must' "$d/err" || why="$why no reason given for [$args]"
+done
+[ "$(cat "$d/-x.maf")" = keep ] || why="$why -x.maf changed"
+result "roast refuses unsafe T=, E=, destination and arguments" "$why"
+
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]
