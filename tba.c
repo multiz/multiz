@@ -51,7 +51,7 @@ int get_rid_of_top(char* input_maf, char* output_maf) {
 
     if ( execute == 0)
         return 0;
-    fpw = fopen(output_maf, "w");
+    fpw = ckopen(output_maf, "w");   // unchecked, a NULL stream crashed in mafWrite
     mf = mafOpen(input_maf, 1);
     while ( (ali=mafNext(mf))!=NULL) {
         comp=ali->components;
@@ -65,7 +65,7 @@ int get_rid_of_top(char* input_maf, char* output_maf) {
         mafAliFree(&ali);
     }
     mafFileFree(&mf);
-    fclose(fpw);
+    ckclose(fpw, output_maf);       // a failed write stops tba, as the other steps' do
     return 0;
 }
 
