@@ -256,7 +256,8 @@ conda)
 	YAMA_SHADOW_LOG=$L "$VW/conda-shadow/multiz" M=1 "$DEEP/left.maf" "$DEEP/right.maf" 0 /dev/null /dev/null > /dev/null 2>&1 || rc=1
 	awk '/^YAMA_SHADOW calls/ { for (i = 1; i <= NF; i++) { split($i, kv, "="); v[kv[1]] += kv[2] } }
 		END { printf "CONDA AVX2 engaged on the deep merge: p1_vec_rows=%d p2_vec_rows=%d of rows=%d (cells %d, vector p1 %d)\n", v["p1_vec_rows"], v["p2_vec_rows"], v["rows"], v["cells"], v["p1_vec_cells"] }' "$L" | tee "$VW/conda.eng"
-	awk '{ split($6, a, "="); exit !(a[2] > 0) }' "$VW/conda.eng" || rc=1
+	# p1_vec_rows by name: field 6 is the word "deep", so the old test always failed, hiding the digest check above
+	awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^p1_vec_rows=/) { split($i, a, "="); exit !(a[2] > 0) } exit 1 }' "$VW/conda.eng" || rc=1
 	grep -q MISMATCH "$L" && rc=1
 	exit $rc
 	;;
