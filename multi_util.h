@@ -56,7 +56,9 @@ void flip_comps(struct mafAli *a);
 
 
 int parse_fasta(char *line, char **ident, maf_pos_t *start, maf_pos_t *end, maf_pos_t *srcSize);
-int parseHeader(char* fn, SEQ* sf, char* name, char* chr, maf_pos_t* start, maf_pos_t* end, char* strnd, maf_pos_t* size);
+/* name and chr are buffers of namesz bytes each; a field that does not fit is an error (the copies were unbounded,
+*  so a long FASTA header or sequence-file path overran the callers' buffers) */
+int parseHeader(char* fn, SEQ* sf, char* name, char* chr, size_t namesz, maf_pos_t* start, maf_pos_t* end, char* strnd, maf_pos_t* size);
 // inspect fasta header line to determine a sequence's name in maf entries
 char *seq_ident(char *filename);
 

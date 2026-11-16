@@ -259,26 +259,45 @@ void order_rows(struct mafAli **a, struct mafComp **location, char **species,
 15 - ${THIS_CONTIG_NUM}
 16 - ${TOTAL_NUM_CONTIGS}
 */
-static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, maf_pos_t* start, maf_pos_t* end, char* strand, maf_pos_t* size) {
+static int msa_fields(char* fn, SEQ* sf, char **arr, int i, char* name, char* chr, size_t namesz, maf_pos_t* start, maf_pos_t* end, char* strand, maf_pos_t* size);
+
+// copy a header field into a namesz-byte buffer, or stop: the copy used to be unbounded
+static void header_field(char *dst, size_t namesz, const char *src, const char *what) {
+    if (strlen(src) >= namesz)
+        fatalf("%s too long (more than %lu characters): %.80s...", what, (unsigned long)namesz - 1, src);
+    strcpy(dst, src);
+}
+
+static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, size_t namesz, maf_pos_t* start, maf_pos_t* end, char* strand, maf_pos_t* size) {
     char *arr[17], *ptr1, *ptr2;
-    int i, len;
+    int i, k, len, ret;
 
     for (ptr1=sf->header; *ptr1 != '>'; ptr1++)
         ;
+    // i counts every '|'-ended field, but only the first 17 are kept: a header with more used to overrun arr
     for (++ptr1, ptr2=ptr1, i=0; *ptr2 != '\0'; ptr2++) {
         if ( *ptr2 == '|') {
-            len = ptr2 - ptr1;
-            arr[i] = (char*)malloc((len+1)*sizeof(char));
-            strncpy(arr[i], ptr1, len);
-            arr[i][len] = '\0';
+            if (i < 17) {
+                len = ptr2 - ptr1;
+                arr[i] = (char*)ckalloc((len+1)*sizeof(char));
+                strncpy(arr[i], ptr1, len);
+                arr[i][len] = '\0';
+            }
             i++;
             ptr1 = ptr2+1;
         }
     }
+    ret = msa_fields(fn, sf, arr, i, name, chr, namesz, start, end, strand, size);
+    for (k = 0; k < i && k < 17; k++)
+        free(arr[k]);
+    return ret;
+}
+
+static int msa_fields(char* fn, SEQ* sf, char **arr, int i, char* name, char* chr, size_t namesz, maf_pos_t* start, maf_pos_t* end, char* strand, maf_pos_t* size) {
     if ( i == 17 ) {
         if ( strcmp(arr[0], ".")!=0 && strcmp(arr[7], ".")!=0 && strcmp(arr[8], ".")!=0 && strcmp(arr[9], ".")!=0 && strcmp(arr[10], ".")!=0 && strcmp(arr[11], ".")!=0 ) {
-            strcpy(name, arr[0]);
-            strcpy(chr,  arr[7]);
+            header_field(name, namesz, arr[0], "sequence name");
+            header_field(chr, namesz, arr[7], "sequence name");
             *start = atoll(arr[8]);
             //*end   = atoi(arr[9]);
             *end = *start + (maf_pos_t)strlen((char*)sf->seq) - 1;
@@ -289,8 +308,8 @@ static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, maf_pos_t* s
             return 0;
         }
         if ( strcmp(arr[0], ".")!=0 && strcmp(arr[15], ".")!=0 && strcmp(arr[13], ".")!=0 && strcmp(arr[11], ".")!=0) {
-            strcpy(name, arr[0]);
-            strcpy(chr,  arr[15]);
+            header_field(name, namesz, arr[0], "sequence name");
+            header_field(chr, namesz, arr[15], "sequence name");
             *start = 1;
             *end   = atoll(arr[13]);
             *size  = *end;
@@ -298,8 +317,8 @@ static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, maf_pos_t* s
             return 0;
         }
     }
-    strcpy(name, fn);
-    strcpy(chr, fn);
+    header_field(name, namesz, fn, "sequence file name");
+    header_field(chr, namesz, fn, "sequence file name");
     *start = 1;
     *size = *end = (maf_pos_t)strlen((char*)sf->seq);
     *strand = '+';
@@ -309,17 +328,28 @@ static int parseMSAHeader(char* fn, SEQ* sf, char* name, char* chr, maf_pos_t* s
     //return 1;
 }
 
-int parseHeader(char* fn, SEQ* sf, char* name, char* chr, maf_pos_t* start, maf_pos_t* end, char* strand, maf_pos_t* size) {
+int parseHeader(char* fn, SEQ* sf, char* name, char* chr, size_t namesz, maf_pos_t* start, maf_pos_t* end, char* strand, maf_pos_t* size) {
+    char *f1, *f2;
+    int ret = -1;
 
     if ( sf->header[0] != '>' )
         fatal("Wrong fasta header!");
-    if ( sscanf(sf->header, ">%[^:]:%[^:]:%lld-%lld:%c:%lld", name, chr, start, end, strand, size) == 6 )
-        return 0;
-    if ( sscanf(sf->header, ">%[^:]:%[^:]:%lld:%c:%lld", name, chr, start, strand, size) == 5 ) {
+    // the %[^:] fields are read into header-sized buffers, then copied with a length check
+    f1 = ckalloc(strlen(sf->header) + 1);
+    f2 = ckalloc(strlen(sf->header) + 1);
+    if ( sscanf(sf->header, ">%[^:]:%[^:]:%lld-%lld:%c:%lld", f1, f2, start, end, strand, size) == 6 )
+        ret = 0;
+    else if ( sscanf(sf->header, ">%[^:]:%[^:]:%lld:%c:%lld", f1, f2, start, strand, size) == 5 ) {
         *end = *start + (maf_pos_t)strlen((char*)sf->seq) - 1;
-        return 0;
-    } else
-        return parseMSAHeader(fn, sf, name, chr, start, end, strand, size);
+        ret = 0;
+    }
+    if (ret == 0) {
+        header_field(name, namesz, f1, "sequence name");
+        header_field(chr, namesz, f2, "sequence name");
+    }
+    free(f1);
+    free(f2);
+    return ret == 0 ? 0 : parseMSAHeader(fn, sf, name, chr, namesz, start, end, strand, size);
 }
 
 /*

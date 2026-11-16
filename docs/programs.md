@@ -72,7 +72,7 @@ appended to it.
   `A=2` is likewise newer than the documented `A=0|1`.
 - `A=0` requires `blastz_clean` and `toast`; `A=2` additionally requires
   `chain`. None are [part of this package](#external-programs-not-included).
-- Version 16 (`all_bz.c:41`).
+- Version 17 (`all_bz.c:41`).
 
 ### tba
 
@@ -120,7 +120,25 @@ since 11.8.) See [External programs](#external-programs-not-included).
   inputs may contain duplicates relative to other species — use `P=multic`.
 - The temporary-directory path is limited to 460 characters; a longer one is
   refused with an error.
-- Version 19 (`tba.c:5`).
+- **Paths and arguments (since 11.10).** The destination, the temporary
+  directory (`T=` or `$TMPDIR`) and `E=` must each be one plain word: no white
+  space, quotes, `$`, `` ` ``, `\`, `*`, `?`, `[`, `]`, `|`, `;`, `&`, `<`, `>`,
+  `(`, `)`, `{`, `}` or `~`, and no leading `-`. No argument may contain `"`,
+  `$`, `` ` ``, `\` or a line break. Such values are refused before anything
+  runs, because some steps still pass paths to `/bin/sh` unquoted: a
+  destination of `my out.maf` used to delete the files `my` and `out.maf`.
+  Expand `~` yourself (`T=$HOME/tmp`, not `T=~/tmp` inside quotes).
+- **Pairwise files must not be empty (zero bytes).** A pair with no hits is a
+  file holding only the `##maf` header, which is what `all_bz` and
+  `single_cov2` write. A zero-byte file stops the run with an error; 11.9.1
+  finished for some tree shapes and failed for others.
+- **Each run works in its own directory,** `T=/_TAG_PID_XXXXXX` (made with
+  `mkdtemp`, removed at the end), so runs that share a `T=` cannot overwrite
+  each other's files (since 11.10).
+- **A failed step stops the run** (since 11.10): a child that fails, or an
+  output that cannot be written, ends it with a non-zero exit instead of a
+  partial alignment ending in `##eof maf`.
+- Version 20 (`tba.c:5`).
 
 ### roast
 
@@ -177,7 +195,25 @@ roast [+-] [R=?] [M=?] [P=?] [T=?] [X=?] [C=?] E=reference-species species-guide
   contains `maf` or `eof`; only `#` lines are dropped now. A leaf's pairwise
   file is projected where it is instead of being copied first, so the `-`
   (dry-run) listing has no `cp` lines.
-- Internal version 8 (`auto_mz.c:8`).
+- **Paths and arguments (since 11.10).** The destination, the temporary
+  directory (`T=` or `$TMPDIR`) and `E=` must each be one plain word: no white
+  space, quotes, `$`, `` ` ``, `\`, `*`, `?`, `[`, `]`, `|`, `;`, `&`, `<`, `>`,
+  `(`, `)`, `{`, `}` or `~`, and no leading `-`. No argument may contain `"`,
+  `$`, `` ` ``, `\` or a line break. Such values are refused before anything
+  runs, because some steps still pass paths to `/bin/sh` unquoted: a
+  destination of `my out.maf` used to delete the files `my` and `out.maf`.
+  Expand `~` yourself (`T=$HOME/tmp`, not `T=~/tmp` inside quotes).
+- **Pairwise files must not be empty (zero bytes).** A pair with no hits is a
+  file holding only the `##maf` header, which is what `all_bz` and
+  `single_cov2` write. A zero-byte file stops the run with an error; 11.9.1
+  finished for some tree shapes and failed for others.
+- **Each run works in its own directory,** `T=/_TAG_PID_XXXXXX` (made with
+  `mkdtemp`, removed at the end), so runs that share a `T=` cannot overwrite
+  each other's files (since 11.10).
+- **A failed step stops the run** (since 11.10): a child that fails, or an
+  output that cannot be written, ends it with a non-zero exit instead of a
+  partial alignment ending in `##eof maf`.
+- Internal version 9 (`auto_mz.c:8`).
 
 ---
 
@@ -211,7 +247,7 @@ when a file holds more than one.
 
 Output is in `lav` format on stdout; pipe it through [`lav2maf`](#lav2maf).
 
-Version 15 (`blastzWrapper.c:16`).
+Version 16 (`blastzWrapper.c:16`).
 
 ### multiz
 
@@ -289,7 +325,7 @@ uses its own local flag and does behave as documented.
 
 **Notes**
 
-- Version 11.9.1 (`multiz.c:59`). `README2` describes v10.6; 11.2 is the
+- Version 11.10 (`multiz.c:59`). `README2` describes v10.6; 11.2 is the
   2009–2019 release.
 - Before 11.3, long blocks with many rows could overflow the 32-bit
   dynamic-programming scores (silently misaligning the rest of the block, or
@@ -323,18 +359,18 @@ in particular with `tba E=species`, where only the reference is guaranteed
 single-coverage.
 
 **`C=` has no effect in this build.** It is range-checked and assigned to
-`CONNECTION_THRESHOLD` (`multic.c:307`), but nothing reads that variable at
-runtime. Of its two uses, `align_util.c:510` lies inside a comment block
-spanning `align_util.c:406-519`, and `align_util.c:656` is inside
+`CONNECTION_THRESHOLD` (`multic.c:316`), but nothing reads that variable at
+runtime. Of its two uses, `align_util.c:512` lies inside a comment block
+spanning `align_util.c:408-516`, and `align_util.c:660` is inside
 `connectionAgreement2()`, whose sole caller is `pre_yama2()`
-(`mz_preyama.c:440`) — and `pre_yama2` is never called by anything
-(`mz_preyama.c:391` is its only definition, with a prototype at
-`mz_preyama.h:27`). `multic` itself calls `pre_yama()` (`multic.c:72`).
+(`mz_preyama.c:476`) — and `pre_yama2` is never called by anything
+(`mz_preyama.c:427` is its only definition, with a prototype at
+`mz_preyama.h:32`). `multic` itself calls `pre_yama()` (`multic.c:73`).
 
 **Notes**
 
 - `multic` does **not** accept `L=` or `S=`.
-- Version 12.8 (`multic.c:35`). `README2` describes v11.1. Since 12.2 it shares the
+- Version 12.9 (`multic.c:35`). `README2` describes v11.1. Since 12.2 it shares the
   dynamic-programming fixes of multiz 11.3 (64-bit scores, `size_t` buffer
   sizes) and passes both unused streams to `pre_yama()` as `NULL`.
 
@@ -391,7 +427,7 @@ an abutting predecessor, and written. Output is identical to the in-memory path,
 which every other form still uses. On the hg38 multiz5way chrX bucket this is the
 difference between 677 MiB and 13 MiB at the final projection.
 
-Version 18 (`maf_project.c:29`). `README2` describes v10.
+Version 19 (`maf_project.c:29`). `README2` describes v10.
 
 ### maf_order
 
@@ -508,7 +544,7 @@ the same sequence files given to the aligner — they are needed to recover the
 sequence text and header metadata. Accepts `/dev/stdin`, which is how `all_bz`
 uses it.
 
-Version 18 (`lav2maf.c:3`).
+Version 19 (`lav2maf.c:3`).
 
 ### maf2lav
 

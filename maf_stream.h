@@ -26,7 +26,7 @@ struct mafStream {
 };
 
 struct mafIndex *mafIndexBuild(char *fileName, int verbose);
-int mafIndexChr(struct mafIndex *ix, char *name);   // id of a reference sequence, or -1
+int mafIndexChr(struct mafIndex *ix, const char *name);   // id of a reference sequence, or -1
 int mafIndexFirstUnused(struct mafIndex *ix);       // block number of the first unused block, or -1
 struct mafAli *mafIndexRead(struct mafIndex *ix, int blk);
 void mafStreamOpen(struct mafStream *s, struct mafIndex *ix, int chr);

@@ -58,6 +58,41 @@ void do_cmd(const char *fmt, ...) {
 }
 
 
+/* ------------- what may reach a command line (see speciesTree.h) ------------- */
+
+/* Before these, a roast destination of "my out.maf" ran "rm -f my out.maf" and deleted the user's files my and
+*  out.maf; a T= with a space overwrote a file named by its first word; and a T= with ~ sent the steps to the
+*  shell's grep, which dropped every data row containing "eof" (a species named geof lost its rows). (11.10 code
+*  review, finding 10) */
+void check_shell_word(const char *what, const char *s) {
+    if (*s == '\0' || *s == '-' || strpbrk(s, " \t\n\r\"'\\$`*?[]|;&<>(){}~") != NULL)
+        fatalf("%s must be one plain word, without white space, quotes or any of $ ` \\ * ? [ ] | ; & < > ( ) { } ~, "
+               "and must not start with '-': \"%s\"", what, s);
+}
+
+void check_shell_text(const char *what, const char *s) {
+    if (strpbrk(s, "\"$`\\\n\r") != NULL)
+        fatalf("%s must not contain \", $, `, \\ or a line break: %s", what, s);
+}
+
+static char *work_dir;
+
+char *make_work_dir(const char *dir, const char *tag) {
+    char *prefix = ckalloc(NAMESIZE_ST);
+
+    work_dir = ckalloc(NAMESIZE_ST);
+    cksnprintf(work_dir, NAMESIZE_ST, "%s/_%s_%ld_XXXXXX", dir, tag, (long)getpid());
+    if (execute && mkdtemp(work_dir) == NULL)
+        fatalf("cannot make a temporary directory in %s: %s", dir, strerror(errno));
+    cksnprintf(prefix, NAMESIZE_ST, "%s/", work_dir);
+    return prefix;
+}
+
+void remove_work_dir(void) {
+    if (execute && work_dir != NULL && rmdir(work_dir) != 0)
+        fprintf(stderr, "warning: cannot remove %s: %s\n", work_dir, strerror(errno));
+}
+
 /* ------------- native versions of the shell file steps (see speciesTree.h) ------------- */
 
 static void native_note(const char *cmd, int ok);
@@ -129,6 +164,17 @@ static void native_show(const char *cmd) {
         (void)printf("%s\n", cmd);
         (void)fflush(stdout);
     }
+}
+
+/* close an output the grep steps wrote; any write, flush or close error is fatal, even
+*  under force (see native_grep_v_append) */
+static void write_done(FILE *o, const char *out) {
+    int bad = ferror(o) != 0;
+
+    if (fclose(o) != 0)
+        bad = 1;
+    if (bad)
+        fatalf("error writing %s: %s", out, errno ? strerror(errno) : "write failed");
 }
 
 // copy every byte of from to the end of an open stream; returns 0 if from cannot be read
@@ -212,6 +258,10 @@ void native_cp(const char *from, const char *to) {
 *  grep did: a newline is added to a last line that lacks one, the step counts as failed
 *  when no line is copied or a file cannot be read, and an unreadable file is reported
 *  as "grep: FILE: reason".
+*  A failure to WRITE the output (it cannot be opened, a write or the close fails, as on
+*  a full disk) is fatal whatever force says: force excuses only an empty selection or an
+*  unreadable input, the cases grep reports with exit 1 or 2. Under force a full disk used
+*  to leave a truncated alignment, roast went on to append "##eof maf", and exited 0.
 */
 void native_grep_v_append(const char *pat, const char *in1, const char *in2, const char *out) {
     char cmd[4 * NAMESIZE_ST + 32];
@@ -230,10 +280,8 @@ void native_grep_v_append(const char *pat, const char *in1, const char *in2, con
     native_show(cmd);
     if (!execute)
         return;
-    if ((o = fopen(out, "a")) == NULL) {    // the shell's >> failed: grep never ran
-        native_note(cmd, 0);
-        return;
-    }
+    if ((o = fopen(out, "a")) == NULL)      // the shell's >> failed: grep never ran
+        fatalf("cannot open %s for writing: %s", out, strerror(errno));
     obuf = ckalloc(1 << 20);
     setvbuf(o, obuf, _IOFBF, 1 << 20);
     ibuf = ckalloc(1 << 20);
@@ -257,15 +305,14 @@ void native_grep_v_append(const char *pat, const char *in1, const char *in2, con
         fclose(in);
     }
     free(line);
-    if (fclose(o) != 0)
-        err = 1;
+    write_done(o, out);
     free(obuf);
     free(ibuf);
     native_note(cmd, !err && selected);
 }
 
-int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, int* id, char* buf, int (*operation)(TreeNodePtr, TreeNodePtr, int, int, char **)) {
-    char name_list[10000], *q, *p;
+int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, int* id, int (*operation)(TreeNodePtr, TreeNodePtr, int, int, char **)) {
+    char *q, *p;
     char fn_left[NAMESIZE_ST], fn_right[NAMESIZE_ST], fn_out[NAMESIZE_ST], fn_head[NAMESIZE_ST], fn_child[NAMESIZE_ST];
     NameListPtr n;
     int top=-1, i, j;
@@ -286,13 +333,12 @@ int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, in
             /* leaf species */
             if (++top >= 1000)
                 fatal("parse_tree: stack overflow");
-            p = buf;
-            while (isalpha(*q) || isdigit(*q) || *q == '_' || *q == '.')
-                *p++ = *q++;
-            --q;
-            *p = '\0';
+            // the name is copied at its own length: it went into the caller's 500-byte buffer unbounded
+            for (p = q; isalpha(*p) || isdigit(*p) || *p == '_' || *p == '.'; p++)
+                ;
             n = ckalloc(sizeof(NameList));
-            n->name = copy_string(buf);
+            n->name = copy_substring(q, (int)(p - q));
+            q = p - 1;
             n->next = NULL;
             tree[top].id = -1;
             tree[top].type = 0;
@@ -305,16 +351,16 @@ int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, in
             // children are leaves, to avoid a use of multiz.
             i = tree[top-1].id;
             j = tree[top].id;
-            snprintf(fn_left, sizeof fn_left, "%sleft.maf%d", PREFIX, *id);
-            snprintf(fn_right, sizeof fn_right, "%sright.maf%d", PREFIX, *id);
-            snprintf(fn_out, sizeof fn_out, "%s%s%d", PREFIX, OPERAT, *id);
-            snprintf(fn_head, sizeof fn_head, "%shead", PREFIX);
+            cksnprintf(fn_left, sizeof fn_left, "%sleft.maf%d", PREFIX, *id);
+            cksnprintf(fn_right, sizeof fn_right, "%sright.maf%d", PREFIX, *id);
+            cksnprintf(fn_out, sizeof fn_out, "%s%s%d", PREFIX, OPERAT, *id);
+            cksnprintf(fn_head, sizeof fn_head, "%shead", PREFIX);
             if (i >= 0) {
-                snprintf(fn_child, sizeof fn_child, "%s%s%d", PREFIX, OPERAT, i);
+                cksnprintf(fn_child, sizeof fn_child, "%s%s%d", PREFIX, OPERAT, i);
                 native_mv(fn_child, fn_left);
             }
             if (j >= 0) {
-                snprintf(fn_child, sizeof fn_child, "%s%s%d", PREFIX, OPERAT, j);
+                cksnprintf(fn_child, sizeof fn_child, "%s%s%d", PREFIX, OPERAT, j);
                 native_mv(fn_child, fn_right);
             }
             native_cp(fn_head, fn_out);
@@ -325,16 +371,6 @@ int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, in
                     native_grep_v_append("maf", fn_left, NULL, fn_out);
                     native_grep_v_append("maf", fn_right, NULL, fn_out);
                     force = 0;
-                }
-                name_list[0] = '\0';
-                for (n = tree[top-1].names; n != NULL; n = n->next) {
-                    strcat(name_list, " ");
-                    strcat(name_list, n->name);
-                }
-                strcat(name_list, " +");
-                for (n = tree[top].names; n != NULL; n = n->next) {
-                    strcat(name_list, " ");
-                    strcat(name_list, n->name);
                 }
             }
             /* merge the lists of names */
@@ -422,8 +458,8 @@ static int ns_grep_v(const char *pat, char **in, int nin, const char *out, int a
     ssize_t len;
     int k, selected = 0, err = 0;
 
-    if ((o = fopen(out, append ? "a" : "w")) == NULL)
-        return 0;
+    if ((o = fopen(out, append ? "a" : "w")) == NULL)   // fatal whatever force says (native_grep_v_append)
+        fatalf("cannot open %s for writing: %s", out, strerror(errno));
     obuf = ckalloc(1 << 20);
     ibuf = ckalloc(1 << 20);
     setvbuf(o, obuf, _IOFBF, 1 << 20);
@@ -445,8 +481,7 @@ static int ns_grep_v(const char *pat, char **in, int nin, const char *out, int a
         fclose(f);
     }
     free(line);
-    if (fclose(o) != 0)
-        err = 1;
+    write_done(o, out);
     free(obuf);
     free(ibuf);
     return !err && selected;

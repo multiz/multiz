@@ -1,4 +1,6 @@
 #include <stdarg.h>
+#include <errno.h>
+#include <string.h>
 #include "util.h"
 
 char *argv0;
@@ -53,6 +55,37 @@ FILE *ckopen(const char *name, const char *mode) {
     if ((fp = fopen(name, mode)) == NULL)
         fatalf("Cannot open %s.", name);
     return fp;
+}
+
+/* ckclose ------------ flush and close an output stream; die if any write failed
+*  A full disk or a closed descriptor sets the stream's error flag and is otherwise
+*  silent, so a program that never looks exits 0 with a truncated file. stdout is
+*  flushed and checked but not closed, so it is never closed twice. */
+void ckclose(FILE *fp, const char *what) {
+    int bad;
+
+    if (fp == NULL)
+        return;
+    errno = 0;      // so the message names this stream's error, not an earlier one
+    bad = fflush(fp) != 0 || ferror(fp);
+    if (fp != stdout && fclose(fp) != 0)
+        bad = 1;
+    if (bad)
+        fatalf("error writing %s: %s", what, errno ? strerror(errno) : "write failed");
+}
+
+/* cksnprintf ------------ snprintf into buf[n]; die rather than truncate or overrun
+*  roast and tba build temporary file names in fixed buffers; a long $TMPDIR or T=
+*  overran them (an abort under fortify, silent corruption without it). */
+void cksnprintf(char *buf, size_t n, const char *fmt, ...) {
+    va_list ap;
+    int len;
+
+    va_start(ap, fmt);
+    len = vsnprintf(buf, n, fmt, ap);
+    va_end(ap);
+    if (len < 0 || (size_t)len >= n)
+        fatalf("name too long (more than %lu characters): %.80s...", (unsigned long)n - 1, buf);
 }
 
 void *ckalloc(size_t amount) {

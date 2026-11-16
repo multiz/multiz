@@ -148,6 +148,31 @@ int* mapping(uchar** A, int a_row1, int a_row2, int a_col1, int a_col2, uchar** 
     return mapArray;
 }
 
+int preyama_skip_dash(void) {
+    static int on = -1;
+
+    if (on < 0) {
+        const char *e = getenv("MULTIZ_PREYAMA_SKIP_DASH");
+        if (e == NULL || e[0] == '\0')
+            on = 0;
+        else if (strcmp(e, "1") == 0) {
+            on = 1;
+            print_argv0();      // the program's own name: multic and tba read the option too
+            fprintf(stderr, "MULTIZ_PREYAMA_SKIP_DASH=1: EXPERIMENTAL band setup in pre_yama "
+                    "(reference-only columns of the second alignment are skipped); output may differ from the default\n");
+        } else {
+            /* Any other value is OFF, not an error. A fatal here came after multiz had truncated
+            *  out1/out2, and under roast the failed child went unnoticed, so "=0" or "=yes" gave an
+            *  empty alignment with exit 0 (11.10 code review, finding 1). OFF is 11.9.1's output. */
+            on = 0;
+            print_argv0();
+            fprintf(stderr, "MULTIZ_PREYAMA_SKIP_DASH=\"%s\" is not 1; the experimental band setup "
+                    "stays off\n", e);
+        }
+    }
+    return on;
+}
+
 // determine upper and lower bounds for yama procedure
 // v can only be 0, or 1
 struct mafAli* pre_yama(struct mafAli *a1, struct mafAli* a2, maf_pos_t beg, maf_pos_t end,int radius, int v, FILE* fpw1, FILE* fpw2) {
@@ -156,7 +181,7 @@ struct mafAli* pre_yama(struct mafAli *a1, struct mafAli* a2, maf_pos_t beg, maf
     uchar **A, **B, **AL_new, **AL_new2, **A2, **B2;
     struct mafComp* comp;
     struct mafAli* val;
-    int tmp1, tmp2, M_cp, N_cp;
+    int tmp1, tmp2, M_cp, N_cp, skip_dash;
     int *map1, *map2, *map3, *map4;
     int curr1, curr2;
 
@@ -320,13 +345,18 @@ struct mafAli* pre_yama(struct mafAli *a1, struct mafAli* a2, maf_pos_t beg, maf
             LB[i]=0;
             RB[i]=M_new;
         }
+        skip_dash = preyama_skip_dash();
         for (i=1; i<=N_cp; i++) { // walking along the original top row in a2
             tmp1 = map3[i];
             /* map2[i] == -1 marks a column where a2's reference has a base and every other row of a2 a gap.
             *  The code used to read map4[-1] there: 4 bytes before the array, which under glibc is the high
             *  half of the chunk-size field, always 0.  Writing that 0 explicitly keeps the output unchanged
-            *  under glibc and stops the crashes under other allocators.  Skipping the column, as the a1 loop
-            *  above does, changes the output; that is left for a later release. */
+            *  under glibc and stops the crashes under other allocators.  The 0 sets RB[tmp1] to 0, which
+            *  NARROWS the band's B half up to that reference position (smooth makes RB monotone).
+            *  MULTIZ_PREYAMA_SKIP_DASH=1 (experimental) skips the column instead, as the a1 loop above does,
+            *  which leaves that half of the band whole; it changes the output. */
+            if (map2[i] == -1 && skip_dash)
+                continue;
             tmp2 = map2[i] == -1 ? 0 : map4[map2[i]];
             if ( tmp1 == -1 || tmp2 == -1 )
                 continue;

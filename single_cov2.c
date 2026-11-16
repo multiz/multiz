@@ -11,7 +11,7 @@
 
 #define IGNORE 6	/* don't make alignments smaller than this */
 #define STOP_CRITERIA 0.99
-#define VERSION 17
+#define VERSION 18
 
 struct mafAli *mafOverlap(struct mafAli *a, FILE *fp) {
     struct mafAli **A, *b, *alast;
@@ -102,7 +102,8 @@ struct mafAli *mafOverlap(struct mafAli *a, FILE *fp) {
             alast = b;
         }
 
-    alast->next = NULL;
+    if (alast != NULL)      // every block may have been freed as too short
+        alast->next = NULL;
     free(A);
     free(min_later_beg);
     return a;

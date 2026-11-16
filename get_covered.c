@@ -77,7 +77,7 @@ int get_covered(struct mafAli** wk_list1, struct mafAli** wk_list2) {
 // first file's top seq is the same sa the second file
 // seq may have different contigs
 int main(int argc, char** argv) {
-    char cur_chr[200];
+    char *cur_chr;
     struct mafFile *maf1, *maf2;
     struct mafAli *cp_list1, *cp_list2, *wk_list1, *wk_list2;
 
@@ -97,10 +97,11 @@ int main(int argc, char** argv) {
 
     while ( cp_list1 != NULL && cp_list2 != NULL ) {
         wk_list1 = wk_list2 = NULL;
-        strcpy(cur_chr, cp_list2->components->src);
+        cur_chr = copy_string(cp_list2->components->src);   // any length (a fixed 200 bytes overflowed)
 
         seperate_cp_wk(&cp_list2, &wk_list2, cur_chr);
         seperate_cp_wk(&cp_list1, &wk_list1, cur_chr);
+        free(cur_chr);
 
         get_covered(&wk_list1, &wk_list2);
     }

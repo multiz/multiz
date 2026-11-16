@@ -461,6 +461,10 @@ int seq_read_nib(SEQ *seq) {
     int32_t nib_len;
     if (seq->header) ZFREE(seq->header);
     if (seq->seq) ZFREE(seq->seq);
+    /* a .nib file holds one sequence: the second read is the end. seq_freadnib seeks to the start, so without
+    *  this every "while (seq_read(sf))" loop read the same sequence forever (11.10 code review-and-quality) */
+    if (seq->count > 0)
+        return 0;
 
     // a .nib file stores a 32-bit length, so a range beyond it cannot name bases in the file
     if (seq->from-1 > INT32_MAX || seq->slen > INT32_MAX)

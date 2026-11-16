@@ -34,8 +34,9 @@ That is the whole build — no configure step, no external libraries. It produce
 18 executables in the source directory, and works with current compilers
 (gcc 15, whose default is C23).
 
-`make check` then runs the regression tests in a second or so; see
-[tests/README.md](tests/README.md).
+`make check` then runs the regression tests and the `yama` fuzz test in about
+10 s; it needs `python3`, and builds the fuzz drivers with the same `CC` and
+`CFLAGS` as the programs. See [tests/README.md](tests/README.md).
 
 The Makefile hardcodes `CC = gcc` (`Makefile:1`), so on a system without `gcc`
 override it: `make CC=cc`. `make install` additionally needs `install` and
@@ -47,13 +48,27 @@ To install:
 make && make install INSTALLDIR=/usr/local/bin
 ```
 
-The `install` target has no prerequisites (`Makefile:77`), so it will not build
+The `install` target has no prerequisites (`Makefile:81`), so it will not build
 for you — run `make` first, as above. `INSTALLDIR` defaults to
 `/depot/apps/$(ARCH)/bin`, a Miller Lab convention.
 
 The Makefile compiles at `-O2` with `-Wall -Wextra`. Until 11.3 it used
 `-O0`, which made a roast run about twice as slow. For a debug build, override
 it: `make CFLAGS="-Wall -Wextra -O0 -ggdb3"`.
+
+### Environment variables
+
+- **`YAMA_SIMD=0`** makes `multiz`, `tba` and `multic` use the scalar `yama`
+  even on a CPU with AVX2. The output is the same either way; it is for testing
+  and as an escape hatch. Building with `CFLAGS="... -DYAMA_SIMD=0"` leaves the
+  AVX2 code out entirely (it is left out anyway on other architectures).
+- **`MULTIZ_PREYAMA_SKIP_DASH=1`** turns on an experimental band setup in
+  `pre_yama` that skips reference-only columns of the second alignment. It
+  **changes the output**, says so on stderr and in the output's header, and may
+  be removed. Unset, empty or any other value means off; a value other than 1
+  draws a warning.
+- **`TMPDIR`** is where `roast` and `tba` put their temporary files when `T=` is
+  not given (default `/tmp`).
 
 ## Dependencies
 
@@ -121,6 +136,86 @@ by **Minmei Hou**, multiz's maintainer in the Miller Lab, which she sent to UCSC
 in January 2014. Its source was never published; it was reconstructed from
 UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 [`multiz`](docs/programs.md#multiz).
+
+### Changes in 11.10
+
+- **AVX2 for `yama`, about 1.4 to 1.9 times faster.** The row recurrence is
+  split into two passes, and on x86-64 CPUs with AVX2 the band interior of
+  both is computed four columns at a time (four 64-bit lanes); the CPU is
+  checked at run time, so
+  the default build still runs anywhere. A row whose coefficients do not fit
+  in 32 bits, and any call outside the range the proof covers (checked once
+  per call, in O(1)), is done by the scalar code. `YAMA_SIMD=0` forces the
+  scalar path (see [Environment variables](#environment-variables)).
+- **`MULTIZ_PREYAMA_SKIP_DASH=1`**, an experimental opt-in band setup that
+  changes the output. It is off by default.
+- **Failures are failures.** Each of these exited 0 before, most with a partial
+  alignment:
+  - `roast` ignored a failed `multiz` (a crash, a missing program, an OOM kill,
+    or `C=`, which `multiz` rejects) after its first merge with the reference,
+    and still ended the output with `##eof maf`.
+  - On a full disk, `roast` and `tba` cut the alignment short, appended
+    `##eof maf` and exited 0. `multiz` and `multic` never checked their
+    writes, and an `out1`/`out2` that could not be opened silently dropped
+    the unused blocks.
+  - A sequence byte of 0x80 or above crashed `multiz`, and under `roast` the
+    crash was hidden. It now scores as `N` does.
+  - A headerless MAF file with a long first `a` line overran a heap buffer
+    (`maf_sort`, `single_cov2`, `maf_project` and others); names of more than
+    200 characters overran stack buffers in `mafWrite`, `multiz`, `multic`,
+    `maf_project` and `get_covered`; a `$TMPDIR` or `T=` of about 177
+    characters or more overran `roast`'s and `tba`'s buffers.
+  - A `roast` destination such as `my out.maf` deleted the files `my` and
+    `out.maf`, because paths reached `/bin/sh` unquoted. `roast` and `tba` now
+    refuse, before doing anything, a destination, temporary directory or
+    `E=` containing white space or a character the shell would interpret
+    (see [`roast`](docs/programs.md#roast)).
+  - An `a` line of 1000 bytes or more overran a stack buffer in every program
+    that reads MAF; `mafWrite` itself writes such lines for a block with
+    about 125 paralog rows. FASTA header fields and sequence-file paths
+    overran 200-byte buffers in `pair2tb` (run by `tba` at every merge),
+    `lav2maf`, `maf2lav` and `maf2fasta`. A tree of about 700 species overran
+    a buffer in `roast` and `tba` at the root merge, after all the work. An
+    `amplifier=` or `copy=` naming a row the block lacks crashed the reader.
+  - `blastzWrapper` ignored a failed `lastz` on its reverse and per-sequence
+    paths and ended the output with `#:eof`, so `all_bz` went on.
+  - A `.nib` sequence file was read again and again, without end.
+  - `single_cov2` crashed when trimming left no block on a sequence.
+  - Two `roast` or `tba` runs sharing a `T=` from different containers could
+    use the same file names (the pid) and overwrite each other's files. Each
+    run now works in its own `mkdtemp` directory under `T=`.
+- **Pairwise files must not be zero bytes.** A pair with no hits is a file
+  holding only the `##maf` header. A zero-byte file now stops `roast` with an
+  error at every merge; 11.9.1 finished for some tree shapes and failed for
+  others.
+- **`MULTIZ_PREYAMA_SKIP_DASH=1` is recorded by `multic` too,** whose
+  `pre_yama` honours it; only `multiz`'s output said so before.
+- **Tests.** `make check` adds a `yama` fuzz test (random, targeted and real
+  cases, AVX2 against scalar, with shadow builds that check the value-bound
+  fallback and the `YAMA_SIMD=0` override) and a regression case for each
+  failure above; each fails on 11.9.1. A crash in both fuzz builds now fails
+  the test, the fuzz drivers are built with make's `CC`, and CI runs
+  `make CC=clang check` as well as gcc. `tests/run.sh -g` no longer writes
+  expected output from a failed run. `make check` now passes under gawk and
+  BWK awk in a UTF-8 locale.
+
+Alignments on valid input are unchanged. `make check` (gcc and clang, and
+under AddressSanitizer and UBSan), the deep merge, a 216-genome cannabis piece
+and hg38 100-way piece 03 match 11.9.1 byte for byte, with the AVX2 build, the
+scalar build (`-DYAMA_SIMD=0`) and a shadow build that checks every AVX2 cell
+against the scalar code (419 million rows on piece 03, no mismatch). On laila
+(Xeon Gold 6330), wall time against 11.9.1 fell from 14.1 s to 8.2 s on the
+deep merge, 71 s to 42 s on the cannabis piece and 947 s to 550 s on piece 03;
+the scalar build runs at 11.9.1's speed. Before the fixes above, which leave
+`yama` alone, the AVX2 build also matched 11.9.1 on hg38 piece 04 (991 s to
+564 s) and on a median-weight 216-genome piece (1942 s to 1014 s).
+
+Program versions: every program that prints a version moves on, as all link
+the changed `util.c` and most the changed `maf.c` — `multiz` 11.10, `multic`
+12.9, `tba` 20, `roast` 9, `maf_project` 19, `lav2maf` 19, `maf2lav` 18,
+`single_cov2` 18, `pair2tb` 17, `blastzWrapper` 16, `maf_order` 16,
+`maf2fasta` 9, `mafFind` 8 and `all_bz` 17. The versions appear in header
+lines (`tba`'s in `##maf version=`), so those lines differ from 11.9.1's.
 
 ### Changes in 11.9.1
 

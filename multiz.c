@@ -56,7 +56,7 @@ extern int MIN_OUTPUT_WID;
 extern int LRG_BREAK_WID;
 extern int SML_BREAK_WID;
 
-#define VERSION "11.9.1"
+#define VERSION "11.10"
 
 int multiz(struct mafStream* wk_list1, struct mafStream* wk_list2, FILE* fpw1, FILE* fpw2, int v) {
     struct mafAli *a1, *a2, *new_ali;
@@ -181,7 +181,10 @@ int main(int argc, char** argv) {
     struct mafAli *ali;
     int x, nohead=0, v, i, blk;
     FILE *fpw1=NULL, *fpw2=NULL;
-    char ref_chr[200], cmd[200], args[2000];
+    char cmd[200], *args;
+    const char *ref_chr;
+    size_t args_len;
+    int skip_dash;
 
     big_buffer(stdout);
     sprintf(cmd, "multiz.v%s", VERSION);
@@ -194,6 +197,11 @@ int main(int argc, char** argv) {
     strcat(USAGE, "\tnohead(null) null: output maf header; nohead: not to output maf header.\n");
     strcat(USAGE, "\tall(null) null: not to output single-row blocks; all: output all blocks.\n");
 
+    // the command line for the header, sized from the arguments (a fixed 2,000 bytes overflowed on long paths)
+    args_len = strlen(cmd) + 2;
+    for (i=1; i<argc; i++)
+        args_len += strlen(argv[i]) + 1;
+    args = ckalloc(args_len);
     strcpy(args, cmd);
     strcat(args, " ");
     for (i=1; i<argc; i++) {
@@ -238,23 +246,29 @@ int main(int argc, char** argv) {
     if ( argc != 4 && argc !=6)
         fatalf(" -- aligning two files of alignment blocks where top rows are always the reference, reference in both files cannot have duplicats\n%s", USAGE);
 
+    v = atoi(argv[3]);   // v is used later to determine the way to use yama
+    if ( v != 0 && v != 1 )
+        fatal("v can only be value of 0, 1 ");
+
+    // read MULTIZ_PREYAMA_SKIP_DASH once, before any output file is opened (and so truncated)
+    skip_dash = preyama_skip_dash();
+
     if ( argc == 6) {
-        fpw1 = fopen(argv[4], "w");
-        fpw2 = fopen(argv[5], "w");
+        // ckopen: an unopenable out1/out2 used to leave a NULL stream that silently dropped the unused blocks
+        fpw1 = ckopen(argv[4], "w");
+        fpw2 = ckopen(argv[5], "w");
         big_buffer(fpw1);
         big_buffer(fpw2);
     } else
         fpw1 = fpw2 = stdout;
-
-    v = atoi(argv[3]);   // v is used later to determine the way to use yama
-    if ( v != 0 && v != 1 )
-        fatal("v can only be value of 0, 1 ");
 
     // ---- end of processing arguments
 
     if ( nohead == 0) {
         mafWriteStart(stdout, "multiz");
         printf("# %s\n", args);
+        if (skip_dash)
+            printf("# MULTIZ_PREYAMA_SKIP_DASH=1: experimental pre_yama band setup is on\n");
     }
     init_scores70();
 
@@ -267,7 +281,7 @@ int main(int argc, char** argv) {
 
     while ( ix1->left > 0 && ix2->left > 0 ) {
         blk = mafIndexFirstUnused(ix1);
-        strcpy(ref_chr, ix1->chrName[ix1->chr[blk]]);
+        ref_chr = ix1->chrName[ix1->chr[blk]];   // the index owns it until mafIndexFree
 
         mafStreamOpen(&wk_list1, ix1, ix1->chr[blk]);
         mafStreamOpen(&wk_list2, ix2, mafIndexChr(ix2, ref_chr));
@@ -295,11 +309,16 @@ int main(int argc, char** argv) {
     mafIndexFree(&ix1);
     mafIndexFree(&ix2);
 
-    if (fpw1 != NULL)
-        fclose(fpw1);
-    if ( fpw2 != NULL)
-        fclose(fpw2);
-
-    mafWriteEnd(stdout);
+    /* Every output is checked: a failed write (a full disk, /dev/full, a closed pipe) used to exit 0.
+    *  In the 3-argument form out1 and out2 ARE stdout, which was closed twice before "##eof maf" went to the
+    *  closed stream, so that form has never written the trailer. It still does not: adding it changes the
+    *  output, and is left for 11.11. */
+    if ( argc == 6 ) {
+        ckclose(fpw1, argv[4]);
+        ckclose(fpw2, argv[5]);
+        mafWriteEnd(stdout);
+    }
+    ckclose(stdout, "stdout");
+    free(args);
     return 0;
 }

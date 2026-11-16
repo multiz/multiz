@@ -76,6 +76,7 @@ tarfile :
 
 check : $(PROGS)
 	sh tests/run.sh
+	YAMA_FUZZ_CC="$(CC)" YAMA_FUZZ_CFLAGS="$(CFLAGS)" sh tests/yama_fuzz/check.sh; r=$$?; [ $$r -eq 0 ] || [ $$r -eq 77 ]
 
 install :
 	mkdir -p $(INSTALLDIR); set -x; for f in $(PROGS); do $(INSTALL) $$f $(INSTALLDIR) || exit 1; done

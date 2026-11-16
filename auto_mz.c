@@ -5,7 +5,7 @@
 #include "speciesTree.h"
 #include "mz_scores.h"
 
-#define VERSION 8
+#define VERSION 9
 
 // macro to convince gnu c compiler not to complain about unusued function
 // arguments
@@ -51,7 +51,7 @@ int contain_species(NameListPtr nlist, char* species) {
 
 //int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char** bz_file) {
 int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), arg_dont_complain(char** bz_file)) {
-    char _right_maf[200], _left_maf[200], _middle_maf[200];
+    char _right_maf[NAMESIZE], _left_maf[NAMESIZE], _middle_maf[NAMESIZE];
     char fn_out[NAMESIZE], fn_in[NAMESIZE], in_left[NAMESIZE], in_right[NAMESIZE];
     NameListPtr n1, n2;
     int left, right;
@@ -59,9 +59,9 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
     if ( x->names == NULL || y->names == NULL )
         fatal("mz_merge:; emtpy sub-tree");
 
-    sprintf(_middle_maf, "%smiddle.maf", PREFIX);
-    sprintf(_left_maf, "%sleft.maf%d", PREFIX, id);
-    sprintf(_right_maf, "%sright.maf%d", PREFIX, id);
+    cksnprintf(_middle_maf, sizeof _middle_maf, "%smiddle.maf", PREFIX);
+    cksnprintf(_left_maf, sizeof _left_maf, "%sleft.maf%d", PREFIX, id);
+    cksnprintf(_right_maf, sizeof _right_maf, "%sright.maf%d", PREFIX, id);
 
     n1 = x->names;
     n2 = y->names;
@@ -74,6 +74,7 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
             native_grep_v_append("eof", fn_in, NULL, fn_out);
         } else
             native_grep_v_append("eof", _right_maf, NULL, fn_out);
+        force = 0;   // force excuses this one copy; left set, it hid every later child's failure
         native_rm2(_right_maf, _left_maf);
         return 0;
     }
@@ -84,6 +85,7 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
             native_grep_v_append("eof", fn_in, NULL, fn_out);
         } else
             native_grep_v_append("eof", _left_maf, NULL, fn_out);
+        force = 0;
         native_rm2(_left_maf, _right_maf);
         return 0;
     }
@@ -118,6 +120,7 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
         if ( n1->next == NULL && n2->next == NULL ) {
             force = 1;
             native_grep_v_append("eof", _MZ_U1, _MZ_U2, fn_out);
+            force = 0;
             return 0;
         }
     } else {
@@ -146,10 +149,9 @@ static void check_tmp_dir(char *dir) {
 }
 
 int main(int argc, char **argv) {
-    char name_list[10000], USAGE[10000], cmd[500], *big_buf, *bz_file[10000], buf[500], mzPar[500], *mzOpt, *p;
+    char USAGE[10000], cmd[500], *big_buf, *bz_file[10000], buf[500], mzPar[500], *mzOpt;
     int i, top = -1, id = 0, nbz, X, Cvalue=-1;
     TreeNode tree[1000];
-    pid_t pid;
     char *tmpDir = default_tmp_dir();     /* default for T= */
 
     sprintf(cmd, "roast.v%d", VERSION);
@@ -165,7 +167,10 @@ int main(int argc, char **argv) {
     if (argc < 5)
         fatalf("roast -- reference guided multiple alignment.\n%s", USAGE);
 
-    strcpy(DESTINATION, argv[argc-1]);
+    check_shell_word("the destination", argv[argc-1]);
+    cksnprintf(DESTINATION, sizeof DESTINATION, "%s", argv[argc-1]);
+    for (i = 1; i < argc; ++i)   // every argument is echoed into the output's header
+        check_shell_text("an argument", argv[i]);
 
 
 
@@ -292,14 +297,15 @@ int main(int argc, char **argv) {
     }
     //----------------< end of processing arguments >-----------
     OPERAT = copy_string("MZ");
-    pid = getpid();
-    PREFIX = (char*)malloc(NAMESIZE*sizeof(char));
     check_tmp_dir(tmpDir);
-    sprintf(PREFIX, "%s/_%s_%d_", tmpDir, OPERAT, pid);
-    sprintf(_MZ_U1, "%sU1", PREFIX);
-    sprintf(_MZ_U2, "%sU2", PREFIX);
-    sprintf(_MZ_O1, "%sO1", PREFIX);
-    sprintf(_MZ_O2, "%sO2", PREFIX);
+    check_shell_word("the temporary directory (T= or $TMPDIR)", tmpDir);
+    if (REF != NULL)
+        check_shell_word("the reference (E=)", REF);
+    PREFIX = make_work_dir(tmpDir, OPERAT);
+    cksnprintf(_MZ_U1, sizeof _MZ_U1, "%sU1", PREFIX);
+    cksnprintf(_MZ_U2, sizeof _MZ_U2, "%sU2", PREFIX);
+    cksnprintf(_MZ_O1, sizeof _MZ_O1, "%sO1", PREFIX);
+    cksnprintf(_MZ_O2, sizeof _MZ_O2, "%sO2", PREFIX);
 
     init_scores70();
 
@@ -308,10 +314,8 @@ int main(int argc, char **argv) {
     do_cmd("echo \"##maf version=1 scoring=%s.%d\" > %s", cmd, VERSION, DESTINATION);
     do_cmd("echo \"%s\" >> %s", big_buf, DESTINATION);
 
-    top = parseSpeciesTree(argv[1], tree, nbz, bz_file, &id, buf, mz_merge);
+    top = parseSpeciesTree(argv[1], tree, nbz, bz_file, &id, mz_merge);
 
-    if ((p = strchr(name_list, '+')) != NULL)
-        *p = ' ';
     {
         char fn_last[NAMESIZE];
         const char *pa[] = { fn_last, REF, _MZ_O1, NULL };
@@ -322,6 +326,7 @@ int main(int argc, char **argv) {
     native_grep_v_append("eof", _MZ_U1, NULL, DESTINATION);
     force = 0;
     do_cmd("rm %s*", PREFIX);
+    remove_work_dir();
     if (top > 0)
         fatal("tree specification contains too many '('");
     if (top != 0 || tree[0].type != 0)

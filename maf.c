@@ -69,14 +69,20 @@ struct mafFile *mafOpen(char *fileName, int verbose) {
 /* ------- start of code to read arbitrarily long lines and echo comments --- */
 
 //static int need(unsigned long n, char **linep, unsigned long *np) {
+/* make *linep hold at least n+1 bytes. It grew by one step, (*np >> 5) + 16, however
+*  far short it was, so mafNext's copy of a headerless file's first 'a' line (the
+*  buffer still empty) overran a 16-byte buffer (11.10 code review, finding 5). */
 int need(unsigned long n, char **linep, unsigned long *np) {
     char *p;
 
     if (*np <= n) {
-        *np += (*np >> 5) + 16;
-        if ((p = realloc(*linep, *np)) == 0)
+        unsigned long want = *np + (*np >> 5) + 16;
+        if (want <= n)
+            want = n + 1;
+        if ((p = realloc(*linep, want)) == 0)
             return -1;
         *linep = p;
+        *np = want;
     }
     return 0;
 }
@@ -263,6 +269,18 @@ void mafSeekBlock(struct mafFile *mf, long off) {
     mf->off = off;
 }
 
+/* the row an amplifier= or copy= names, walking on from row *curr; a row the block does not have is an
+*  error (the walk used to run off the end of the list and dereference NULL) */
+static struct mafComp *score_line_row(struct mafComp *comp, int *curr, int row, const char *line) {
+    while (*curr < row && comp != NULL) {
+        comp = comp->next;
+        (*curr)++;
+    }
+    if (comp == NULL)
+        fatalf("row %d named in a block's 'a' line is not in the block: %s", row, line);
+    return comp;
+}
+
 // parse line "a ..." to get score
 int parseScoreLine(char* line, struct mafAli* ali) {
     char *ptr1=line+1, *ptr2, *buffer=NULL;
@@ -286,22 +304,16 @@ int parseScoreLine(char* line, struct mafAli* ali) {
             ali->score = atof(buffer+6);
         else if ( strncmp(buffer, "amplifier=", 10) == 0 ) {
             row = atoi(buffer+10);
-            while (curr < row ) {
-                comp = comp->next;
-                curr++;
-            }
+            comp = score_line_row(comp, &curr, row, line);
             comp->paralog = 'a';
         } else if ( strncmp(buffer, "copy=", 5) == 0) {
             row = atoi(buffer+5);
-            while (curr < row) {
-                comp = comp->next;
-                curr++;
-            }
+            comp = score_line_row(comp, &curr, row, line);
             comp->paralog = 'c';
         }
         free(buffer);
         buffer = NULL;
-        ptr1 = ptr2+1;
+        ptr1 = (*ptr2 == '\0') ? ptr2 : ptr2+1;   // a last word with no newline after it ends the line
     }
     return 0;
 }
@@ -311,7 +323,7 @@ struct mafAli *mafNext(struct mafFile *mf) {
     FILE *fp = mf->fp;
     struct mafAli *a = ckalloc(sizeof(struct mafAli));
     struct mafComp *c, *last;
-    char buf[500], blockHeaderLine[1000];
+    char buf[500], *blockHeaderLine;
     static char *line = NULL;
     static unsigned long nb = 0;
     int i, len;
@@ -339,7 +351,8 @@ struct mafAli *mafNext(struct mafFile *mf) {
     	a->score = MIN_INT;
     */
     if ( strncmp(line, "a", 1) == 0)
-        strcpy(blockHeaderLine, line);
+        blockHeaderLine = copy_string(line);   // any length: a fixed 1000 bytes overflowed, and mafWrite
+                                                // itself writes longer 'a' lines (a block with ~125 paralogs)
     else
         fatalf("Expecting 'a (score=xxx)' in file %s, line %d:\n%s",
                mf->fileName, mf->line_nbr, line);
@@ -352,15 +365,14 @@ struct mafAli *mafNext(struct mafFile *mf) {
             mf->pending = copy_string(line);
             break;
         }
-        c = ckalloc(sizeof(struct mafComp));
-
-        c->text = ckalloc(len*sizeof(char));
-        if ( line[0] != 's' )
+        if ( line[0] != 's' )   // i, e and q lines are skipped; they used to leak a component each
             continue;
+        c = ckalloc(sizeof(struct mafComp));
+        c->text = ckalloc(len*sizeof(char));
         if (mafParseS(line, buf, (int)sizeof(buf) - 1, &(c->start), &(c->size), &(c->strand),
                       &(c->srcSize), c->text) != 6)
             fatalf("bad component in file %s, line %d:\n%s",
-                   mf->fileName, mf->line_nbr, buf);
+                   mf->fileName, mf->line_nbr, line);
         c->src = copy_string(buf);
         parseSrcName2(c);
         c->paralog = 's';        // singleton by default
@@ -399,6 +411,7 @@ struct mafAli *mafNext(struct mafFile *mf) {
 
     }
     parseScoreLine(blockHeaderLine, a);
+    free(blockHeaderLine);
     mf->line_nbr++;
     return a;
 }
@@ -485,7 +498,12 @@ static void put_s_line(FILE *f, const char *src, int srcw, long long start, int 
 void mafWrite(FILE *f, struct mafAli *a) {
     struct mafComp *c;
     int srcChars = 0, startChars = 0, sizeChars = 0, srcSizeChars = 0, row;
-    char src[500], name[200], chr[200];
+    /* name and chr receive pieces of c->src, which can be longer than the 200 bytes these once were (the parser
+    *  allows 499 characters, and pair2tb names rows from FASTA headers). Grown as needed and kept between calls,
+    *  as mafWrite runs once per block. */
+    static char *src, *name, *chr;
+    static size_t cap;
+    size_t need_len;
 
     // A block whose score was deferred (keep_ali) is scored here, the only place it is read. The value is the
     // same mafScoreRange over the same block, so the output does not change.
@@ -520,6 +538,13 @@ void mafWrite(FILE *f, struct mafAli *a) {
         srcSizeChars = MAX(srcSizeChars, digitsBaseTen(c->srcSize));
     }
     for (c = a->components; c != NULL; c = c->next) {
+        need_len = 2 * strlen(c->src) + 2;	// name "." chr, each at most strlen(c->src)
+        if (need_len > cap) {
+            cap = need_len;
+            src = ckrealloc(src, cap);
+            name = ckrealloc(name, cap);
+            chr = ckrealloc(chr, cap);
+        }
         parseSrcName(c->src, name, chr);
         strcpy(src, name);
         if ( strcmp( name, chr) != 0) {
