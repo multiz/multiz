@@ -7,6 +7,9 @@
 #include "util.h"
 #include "mz_scores.h"
 #include "mz_yama.h"
+#ifndef SS_NBYTES	// trees before 11.10 allocate ss SS_NCHARS square (run.sh builds this driver against a release)
+#define SS_NBYTES SS_NCHARS
+#endif
 int main(void) {
     int K, M, L, N, i, OM, *LB, *RB;
     uchar **A, **B, **AL;

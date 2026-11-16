@@ -259,23 +259,42 @@ result "roast ucsc name $nm" "$why"
 # 5. Failures are failures (11.10 code review): each case below exited 0, crashed or overran a buffer before.
 # None changes the output on valid input.
 
-# a failed write or an unopenable out1 is an error, not exit 0 (finding 4)
-d=$W/fail.full
-mkdir -p "$d"
-(multiz "$D/synth/k2l2s1.1.maf" "$D/synth/k2l2s1.2.maf" 0 > /dev/full 2> "$d/err"; echo $? > "$d/rc")
-why=
-[ "$(cat "$d/rc")" != 0 ] || why=" exit 0 writing to /dev/full"
-d=$W/fail.open
-mkdir -p "$d"
-(cd "$d" && multiz "$D/synth/k2l2s1.1.maf" "$D/synth/k2l2s1.2.maf" 0 "$d/no/such/U1.maf" U2.maf > out.maf 2> err; echo $? > rc)
-[ "$(cat "$d/rc")" != 0 ] || why="$why exit 0 with an unopenable out1"
-result "multiz output errors" "$why"
+# full DIR PROGRAM ARGS...: run PROGRAM with stdout on /dev/full; it must fail and say why (a missing /dev/full,
+# as on macOS and the BSDs, would make the shell fail instead, so those systems skip it)
+full() {
+	fd=$1; shift
+	mkdir -p "$fd"
+	("$@" > /dev/full 2> "$fd/err"; echo $? > "$fd/rc")
+	[ "$(cat "$fd/rc")" != 0 ] && grep -q 'error writing' "$fd/err"
+}
+# unopenable DIR PROGRAM A B: out1, then out2, in a directory that does not exist
+unopenable() {
+	ud=$1; shift
+	mkdir -p "$ud"
+	(cd "$ud" && "$@" 0 "$ud/no/such/U1.maf" U2.maf > out.maf 2> err; echo $? > rc1)
+	(cd "$ud" && "$@" 0 U1.maf "$ud/no/such/U2.maf" > out.maf 2> err; echo $? > rc2)
+	[ "$(cat "$ud/rc1")" != 0 ] && [ "$(cat "$ud/rc2")" != 0 ]
+}
+
+# a failed write or an unopenable out1/out2 is an error, not exit 0 (finding 4); multiz and multic
+for prog in multiz multic; do
+	why=
+	if [ -c /dev/full ]; then
+		full "$W/fail.full.$prog" $prog "$D/synth/k2l2s1.1.maf" "$D/synth/k2l2s1.2.maf" 0 || why=" /dev/full not reported"
+	else
+		echo "NOTE no /dev/full here: $prog's write-error case is skipped"
+	fi
+	unopenable "$W/fail.open.$prog" $prog "$D/synth/k2l2s1.1.maf" "$D/synth/k2l2s1.2.maf" || why="$why exit 0 with an unopenable out1 or out2"
+	result "$prog output errors" "$why"
+done
 
 # a sequence byte of 0x80 or above scores as N; it crashed multiz, and roast hid the crash (findings 14, 2)
 d=$W/fail.highbyte
 mkdir -p "$d"
 cp "$D"/tba/sa.*.sing.maf "$d"
-awk 'BEGIN { hi = sprintf("%c", 233) } !done && /^s se/ { n = split($0, f, " "); t = f[n]; i = match(t, /[ACGTacgt]/);
+# the byte is made by printf, not awk: gawk and BWK awk write U+00E9 as two UTF-8 bytes in a UTF-8 locale
+hi=$(printf '\351')
+LC_ALL=C awk -v hi="$hi" '!done && /^s se/ { n = split($0, f, " "); t = f[n]; i = match(t, /[ACGTacgt]/);
 	sub(/[^ ]*$/, substr(t, 1, i-1) hi substr(t, i+1)); done = 1 } { print }' "$D/tba/sa.se.sing.maf" > "$d/sa.se.sing.maf"
 roast_run "$d"
 why=

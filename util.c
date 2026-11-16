@@ -66,6 +66,7 @@ void ckclose(FILE *fp, const char *what) {
 
     if (fp == NULL)
         return;
+    errno = 0;      // so the message names this stream's error, not an earlier one
     bad = fflush(fp) != 0 || ferror(fp);
     if (fp != stdout && fclose(fp) != 0)
         bad = 1;
