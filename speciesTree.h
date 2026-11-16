@@ -28,7 +28,7 @@ void native_run(const char *words, const char *const *args, const char *out, int
     *  would; args follow it. */
 
 /* parse treeStr, tree is allocated, assuming enough size */
-int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, int* id, char* buf, int (*operation)(TreeNodePtr, TreeNodePtr, int, int, char**));
+int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, int* id, int (*operation)(TreeNodePtr, TreeNodePtr, int, int, char**));
 
 //NameListPtr formNameList(char* str);
 

@@ -286,7 +286,7 @@ static void check_tmp_dir(char *dir) {
 }
 
 int main(int argc, char **argv) {
-    char name_list[10000], USAGE[10000], cmd[500], *big_buf, *bz_file[10000], buf[500], mzPar[500], *mzOpt, *p;
+    char USAGE[10000], cmd[500], *big_buf, *bz_file[10000], buf[500], mzPar[500], *mzOpt;
     int i, top = -1, id = 0, nbz, X;
     TreeNode tree[1000];
     pid_t pid;
@@ -440,10 +440,8 @@ int main(int argc, char **argv) {
     do_cmd("echo \"##maf version=%d scoring=%s\" > %s", VERSION, cmd, DESTINATION);
     do_cmd("echo \"%s\" >> %s", big_buf, DESTINATION);
 
-    top = parseSpeciesTree(argv[1], tree, nbz, bz_file, &id, buf, tba_merge);
+    top = parseSpeciesTree(argv[1], tree, nbz, bz_file, &id, tba_merge);
 
-    if ((p = strchr(name_list, '+')) != NULL)
-        *p = ' ';
     //	do_cmd("%s %stba%d %s nohead >> %s", mo, PREFIX, id-1, name_list,
     //	  DESTINATION);
     force = 1;

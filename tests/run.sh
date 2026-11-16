@@ -423,5 +423,16 @@ why=
 ran "$d" || why=" exit $(cat "$d/rc")"
 result "pair2tb long sequence paths" "$why"
 
+# a 700-species tree: roast built an unused list of every merge's names in name_list[10000] and overran it at
+# the root merge, after all the work; a dry run ('-') shows it in a moment
+d=$W/rev.bigtree
+mkdir -p "$d/tmp"
+t=$(awk 'BEGIN { t = sprintf("sp%015d", 0); for (i = 1; i < 700; i++) t = sprintf("(%s sp%015d)", t, i); print t }')
+(roast - T="$d/tmp" E=sp000000000000000 "$t" x.maf "$d/out.maf" > "$d/plan" 2> "$d/err"; echo $? > "$d/rc")
+why=
+[ "$(cat "$d/rc")" = 0 ] || why=" exit $(cat "$d/rc")"
+grep -q 'sp000000000000699' "$d/plan" || why="$why the plan never reaches the last species"
+result "roast 700-species tree (dry run)" "$why"
+
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]

@@ -293,8 +293,8 @@ void native_grep_v_append(const char *pat, const char *in1, const char *in2, con
     native_note(cmd, !err && selected);
 }
 
-int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, int* id, char* buf, int (*operation)(TreeNodePtr, TreeNodePtr, int, int, char **)) {
-    char name_list[10000], *q, *p;
+int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, int* id, int (*operation)(TreeNodePtr, TreeNodePtr, int, int, char **)) {
+    char *q, *p;
     char fn_left[NAMESIZE_ST], fn_right[NAMESIZE_ST], fn_out[NAMESIZE_ST], fn_head[NAMESIZE_ST], fn_child[NAMESIZE_ST];
     NameListPtr n;
     int top=-1, i, j;
@@ -315,13 +315,12 @@ int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, in
             /* leaf species */
             if (++top >= 1000)
                 fatal("parse_tree: stack overflow");
-            p = buf;
-            while (isalpha(*q) || isdigit(*q) || *q == '_' || *q == '.')
-                *p++ = *q++;
-            --q;
-            *p = '\0';
+            // the name is copied at its own length: it went into the caller's 500-byte buffer unbounded
+            for (p = q; isalpha(*p) || isdigit(*p) || *p == '_' || *p == '.'; p++)
+                ;
             n = ckalloc(sizeof(NameList));
-            n->name = copy_string(buf);
+            n->name = copy_substring(q, (int)(p - q));
+            q = p - 1;
             n->next = NULL;
             tree[top].id = -1;
             tree[top].type = 0;
@@ -354,16 +353,6 @@ int  parseSpeciesTree(char* treeStr, TreeNode* tree, int nbz, char** bz_file, in
                     native_grep_v_append("maf", fn_left, NULL, fn_out);
                     native_grep_v_append("maf", fn_right, NULL, fn_out);
                     force = 0;
-                }
-                name_list[0] = '\0';
-                for (n = tree[top-1].names; n != NULL; n = n->next) {
-                    strcat(name_list, " ");
-                    strcat(name_list, n->name);
-                }
-                strcat(name_list, " +");
-                for (n = tree[top].names; n != NULL; n = n->next) {
-                    strcat(name_list, " ");
-                    strcat(name_list, n->name);
                 }
             }
             /* merge the lists of names */
