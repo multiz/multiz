@@ -30,7 +30,7 @@ static const int HOX85[4][4] = {	// for mouse-rat alignments
 #define UNSPECIFIED	-100	// score for an unspecified aligned pair
 
 #define CLEN(s) (sizeof((s))-1)
-#define NACHARS SS_NCHARS
+#define NACHARS SS_NBYTES	// every byte value has a row and a column (mz_scores.h)
 
 static void init_scores(const int s[4][4], int **ss, int *gop,  int filler,
                         int gap_op, int gap_ex) {
