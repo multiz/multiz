@@ -120,6 +120,24 @@ since 11.8.) See [External programs](#external-programs-not-included).
   inputs may contain duplicates relative to other species — use `P=multic`.
 - The temporary-directory path is limited to 460 characters; a longer one is
   refused with an error.
+- **Paths and arguments (since 11.10).** The destination, the temporary
+  directory (`T=` or `$TMPDIR`) and `E=` must each be one plain word: no white
+  space, quotes, `$`, `` ` ``, `\`, `*`, `?`, `[`, `]`, `|`, `;`, `&`, `<`, `>`,
+  `(`, `)`, `{`, `}` or `~`, and no leading `-`. No argument may contain `"`,
+  `$`, `` ` ``, `\` or a line break. Such values are refused before anything
+  runs, because some steps still pass paths to `/bin/sh` unquoted: a
+  destination of `my out.maf` used to delete the files `my` and `out.maf`.
+  Expand `~` yourself (`T=$HOME/tmp`, not `T=~/tmp` inside quotes).
+- **Pairwise files must not be empty (zero bytes).** A pair with no hits is a
+  file holding only the `##maf` header, which is what `all_bz` and
+  `single_cov2` write. A zero-byte file stops the run with an error; 11.9.1
+  finished for some tree shapes and failed for others.
+- **Each run works in its own directory,** `T=/_TAG_PID_XXXXXX` (made with
+  `mkdtemp`, removed at the end), so runs that share a `T=` cannot overwrite
+  each other's files (since 11.10).
+- **A failed step stops the run** (since 11.10): a child that fails, or an
+  output that cannot be written, ends it with a non-zero exit instead of a
+  partial alignment ending in `##eof maf`.
 - Version 19 (`tba.c:5`).
 
 ### roast
@@ -177,6 +195,24 @@ roast [+-] [R=?] [M=?] [P=?] [T=?] [X=?] [C=?] E=reference-species species-guide
   contains `maf` or `eof`; only `#` lines are dropped now. A leaf's pairwise
   file is projected where it is instead of being copied first, so the `-`
   (dry-run) listing has no `cp` lines.
+- **Paths and arguments (since 11.10).** The destination, the temporary
+  directory (`T=` or `$TMPDIR`) and `E=` must each be one plain word: no white
+  space, quotes, `$`, `` ` ``, `\`, `*`, `?`, `[`, `]`, `|`, `;`, `&`, `<`, `>`,
+  `(`, `)`, `{`, `}` or `~`, and no leading `-`. No argument may contain `"`,
+  `$`, `` ` ``, `\` or a line break. Such values are refused before anything
+  runs, because some steps still pass paths to `/bin/sh` unquoted: a
+  destination of `my out.maf` used to delete the files `my` and `out.maf`.
+  Expand `~` yourself (`T=$HOME/tmp`, not `T=~/tmp` inside quotes).
+- **Pairwise files must not be empty (zero bytes).** A pair with no hits is a
+  file holding only the `##maf` header, which is what `all_bz` and
+  `single_cov2` write. A zero-byte file stops the run with an error; 11.9.1
+  finished for some tree shapes and failed for others.
+- **Each run works in its own directory,** `T=/_TAG_PID_XXXXXX` (made with
+  `mkdtemp`, removed at the end), so runs that share a `T=` cannot overwrite
+  each other's files (since 11.10).
+- **A failed step stops the run** (since 11.10): a child that fails, or an
+  output that cannot be written, ends it with a non-zero exit instead of a
+  partial alignment ending in `##eof maf`.
 - Internal version 8 (`auto_mz.c:8`).
 
 ---
@@ -323,13 +359,13 @@ in particular with `tba E=species`, where only the reference is guaranteed
 single-coverage.
 
 **`C=` has no effect in this build.** It is range-checked and assigned to
-`CONNECTION_THRESHOLD` (`multic.c:307`), but nothing reads that variable at
-runtime. Of its two uses, `align_util.c:510` lies inside a comment block
-spanning `align_util.c:406-519`, and `align_util.c:656` is inside
+`CONNECTION_THRESHOLD` (`multic.c:316`), but nothing reads that variable at
+runtime. Of its two uses, `align_util.c:512` lies inside a comment block
+spanning `align_util.c:408-516`, and `align_util.c:660` is inside
 `connectionAgreement2()`, whose sole caller is `pre_yama2()`
-(`mz_preyama.c:440`) — and `pre_yama2` is never called by anything
-(`mz_preyama.c:391` is its only definition, with a prototype at
-`mz_preyama.h:27`). `multic` itself calls `pre_yama()` (`multic.c:72`).
+(`mz_preyama.c:476`) — and `pre_yama2` is never called by anything
+(`mz_preyama.c:427` is its only definition, with a prototype at
+`mz_preyama.h:32`). `multic` itself calls `pre_yama()` (`multic.c:73`).
 
 **Notes**
 

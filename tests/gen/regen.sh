@@ -2,7 +2,10 @@
 # Rebuild every test input, then the expected outputs, with a trusted build:
 #   tests/gen/regen.sh BASE_BUILD_DIR
 # Needs python3 and lastz (for all_bz) on PATH. BASE_BUILD_DIR holds all 18
-# programs, built from the release the expected outputs should come from.
+# programs, built from the release the expected outputs should come from: 11.10
+# or later, since run.sh -g also runs the MULTIZ_PREYAMA_SKIP_DASH cases, whose
+# warnings and notices older builds do not print (and -g writes nothing unless
+# every case it generates from runs cleanly).
 set -eu
 G=$(cd "$(dirname "$0")" && pwd)
 T=$(dirname "$G")

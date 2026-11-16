@@ -4,8 +4,8 @@
 make && make check
 ```
 
-`make check` runs `tests/run.sh`, which needs only `sh`, `awk`, `grep`,
-`cmp`, `cp` and `mktemp`, and then the yama fuzz test (below), which needs
+`make check` runs `tests/run.sh`, which needs only `sh`, `awk`, `sed`,
+`grep`, `cmp`, `cp`, `chmod`, `printf` and `mktemp`, and then the yama fuzz test (below), which needs
 python3. `run.sh` prints one `PASS` or `FAIL` line per case and a tally, and
 exits non-zero if any case fails. The two take about 10 s.
 `tests/run.sh DIR` tests the programs in `DIR` instead of the source
@@ -75,23 +75,41 @@ changes one block. With the variable unset, empty or `0`, `roast E=hg38` must gi
 `multiz` with `1` must write a `#` header line saying the option is on; with
 any other value (`yes`, `2`, `0`) it must warn and give the default output.
 Until the 11.10 review those values were fatal, after `multiz` had emptied its
-output files, and `roast` exited 0 with an empty alignment.
+output files, and `roast` exited 0 with an empty alignment. `run.sh` unsets
+the variable first, so the other cases always test the default.
+`multic skipdash header`: `multic`'s `pre_yama` honours the option too, so
+with `1` its output must carry the same header line.
 
 **Section 5, failures**: each case fails on 11.9.1. `multiz output errors`
-(writing to `/dev/full`, and an `out1` that cannot be opened, must exit
-non-zero); `roast high byte` (a 0xE9 byte in one row: the sd and se rows must
+and `multic output errors` (writing to `/dev/full` must exit non-zero with the
+program's own message, skipped where there is no `/dev/full`; an `out1` or
+`out2` that cannot be opened must exit non-zero); `roast high byte` (a 0xE9 byte in one row: the sd and se rows must
 survive; it crashed `multiz`, and `roast` hid it); `roast failed child` (a
-`multiz` whose first call fails must stop `roast`); `maf_sort headerless` and
+`multiz` whose first call fails must stop `roast`, and with the reference as
+the right leaf, its first or second call); `maf_sort headerless` and
 `maf_sort long name` (a long first `a` line without a header, and a
 213-character name, overran buffers); `roast long T=` (a 300-character
-temporary directory); and `roast refuses a destination with a space` (which
-deleted the user's files `my` and `out.maf`). `run.sh` unsets the variable first, so the other
-cases always test the default.
+temporary directory); `roast refuses a destination with a space` (which
+deleted the user's files `my` and `out.maf`); and `roast refuses unsafe T=,
+E=, destination and arguments` (a space or `~` in `T=`, a leading `-`, a `$`).
+
+**Section 6, from the 2026-11-16 review**: each case also fails on 11.9.1,
+except `i, e and q lines`, which pins the output where the fix was a leak.
+`maf_sort 1100-byte a line`; `maf_sort amplifier= past the last row` (an error
+message, not a crash); `pair2tb long sequence paths` (350 characters);
+`roast 700-species tree (dry run)`; `single_cov2 every block trimmed away`;
+`get_standard_headers .nib ends` (piped through `head`, so a loop cannot hang
+the suite); `blastzWrapper reports a failed lastz` (a fake `lastz`, on the
+reverse and per-sequence paths); and `roast work directory` (two runs at once
+in one `T=`, which must be left as it was).
 
 ## Expected outputs
 
-The files in `expected/` were made by the 11.6 release. After a change that
-is meant to alter the output, regenerate them and review the diff:
+The files in `expected/` were made by the 11.6 release, apart from the
+`roast-skipdash` pair (11.10), and 11.10 reproduces all of them. `-g` needs an
+11.10 or later build, because it also runs the `MULTIZ_PREYAMA_SKIP_DASH`
+cases, whose warnings older builds do not print. After a change that is meant
+to alter the output, regenerate them and review the diff:
 
 ```bash
 tests/run.sh -g
@@ -109,8 +127,8 @@ outputs with that build. It needs python3, and lastz on `PATH` for `all_bz`.
 `gen/make_blocks.py` writes the synthetic pairs; `gen/trim.awk` cuts
 `k8l8s2` and `k3l40s1` down to two blocks (and file 2 of `k3l40s1` to the
 reference and 40 rows, without all-gap columns); `gen/make_species.py`
-writes the five species. Run with the 11.6 release and lastz 1.04.52, it
-reproduces the committed files byte for byte. `data/ucsc` is an excerpt of
+writes the five species. Run with an 11.10 build and lastz 1.04.52, it
+reproduces the committed files byte for byte (before 11.10, 11.6 did). `data/ucsc` is an excerpt of
 UCSC's files, not generated, and `regen.sh` leaves it alone.
 
 ## yama fuzz (also run by `make check`)

@@ -48,7 +48,7 @@ To install:
 make && make install INSTALLDIR=/usr/local/bin
 ```
 
-The `install` target has no prerequisites (`Makefile:77`), so it will not build
+The `install` target has no prerequisites (`Makefile:81`), so it will not build
 for you — run `make` first, as above. `INSTALLDIR` defaults to
 `/depot/apps/$(ARCH)/bin`, a Miller Lab convention.
 
@@ -141,7 +141,8 @@ UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 
 - **AVX2 for `yama`, about 1.5 to 1.9 times faster.** The row recurrence is
   split into two passes, and on x86-64 CPUs with AVX2 the band interior of
-  both is computed eight cells at a time; the CPU is checked at run time, so
+  both is computed four columns at a time (four 64-bit lanes); the CPU is
+  checked at run time, so
   the default build still runs anywhere. A row whose coefficients do not fit
   in 32 bits, and any call outside the range the proof covers (checked once
   per call, in O(1)), is done by the scalar code. `YAMA_SIMD=0` forces the
@@ -167,25 +168,50 @@ UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
   - A `roast` destination such as `my out.maf` deleted the files `my` and
     `out.maf`, because paths reached `/bin/sh` unquoted. `roast` and `tba` now
     refuse, before doing anything, a destination, temporary directory or
-    `E=` containing white space or a character the shell would interpret.
+    `E=` containing white space or a character the shell would interpret
+    (see [`roast`](docs/programs.md#roast)).
+  - An `a` line of 1000 bytes or more overran a stack buffer in every program
+    that reads MAF; `mafWrite` itself writes such lines for a block with
+    about 125 paralog rows. FASTA header fields and sequence-file paths
+    overran 200-byte buffers in `pair2tb` (run by `tba` at every merge),
+    `lav2maf`, `maf2lav` and `maf2fasta`. A tree of about 700 species overran
+    a buffer in `roast` and `tba` at the root merge, after all the work. An
+    `amplifier=` or `copy=` naming a row the block lacks crashed the reader.
+  - `blastzWrapper` ignored a failed `lastz` on its reverse and per-sequence
+    paths and ended the output with `#:eof`, so `all_bz` went on.
+  - A `.nib` sequence file was read again and again, without end.
+  - `single_cov2` crashed when trimming left no block on a sequence.
+  - Two `roast` or `tba` runs sharing a `T=` from different containers could
+    use the same file names (the pid) and overwrite each other's files. Each
+    run now works in its own `mkdtemp` directory under `T=`.
+- **Pairwise files must not be zero bytes.** A pair with no hits is a file
+  holding only the `##maf` header. A zero-byte file now stops `roast` with an
+  error at every merge; 11.9.1 finished for some tree shapes and failed for
+  others.
+- **`MULTIZ_PREYAMA_SKIP_DASH=1` is recorded by `multic` too,** whose
+  `pre_yama` honours it; only `multiz`'s output said so before.
 - **Tests.** `make check` adds a `yama` fuzz test (random, targeted and real
   cases, AVX2 against scalar, with shadow builds that check the value-bound
   fallback and the `YAMA_SIMD=0` override) and a regression case for each
   failure above; each fails on 11.9.1. A crash in both fuzz builds now fails
   the test, the fuzz drivers are built with make's `CC`, and CI runs
   `make CC=clang check` as well as gcc. `tests/run.sh -g` no longer writes
-  expected output from a failed run.
+  expected output from a failed run. `make check` now passes under gawk and
+  BWK awk in a UTF-8 locale.
 
-Output on valid input is unchanged: `make check` (gcc and clang), the deep
+Alignments on valid input are unchanged: `make check` (gcc and clang), the deep
 merge, a 216-genome cannabis piece and two hg38 100-way pieces match 11.9.1
 byte for byte. On laila (Xeon Gold 6330), wall time against 11.9.1 fell from
 15.2 s to 9.8 s on the deep merge, 87 s to 52 s on the cannabis piece, 1070 s
 to 648 s and 991 s to 564 s on the two hg38 pieces, and 1942 s to 1014 s on a
 median-weight 216-genome piece.
 
-Program versions: only `multiz` moves, to 11.10. `tba` and `multic` link the
-same `yama`, and the other programs carry the fixes above under their 11.9
-versions.
+Program versions: every program that prints a version moves on, as all link
+the changed `util.c` and most the changed `maf.c` — `multiz` 11.10, `multic`
+12.9, `tba` 20, `roast` 9, `maf_project` 19, `lav2maf` 19, `maf2lav` 18,
+`single_cov2` 18, `pair2tb` 17, `blastzWrapper` 16, `maf_order` 16,
+`maf2fasta` 9, `mafFind` 8 and `all_bz` 17. The versions appear in header
+lines (`tba`'s in `##maf version=`), so those lines differ from 11.9.1's.
 
 ### Changes in 11.9.1
 
