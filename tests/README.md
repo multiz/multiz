@@ -5,8 +5,9 @@ make && make check
 ```
 
 `make check` runs `tests/run.sh`, which needs only `sh`, `awk`, `grep`,
-`cmp`, `cp` and `mktemp`. It prints one `PASS` or `FAIL` line per case and a
-tally, and exits non-zero if any case fails. It takes about a second.
+`cmp`, `cp` and `mktemp`, and then the yama fuzz test (below), which needs
+python3. `run.sh` prints one `PASS` or `FAIL` line per case and a tally, and
+exits non-zero if any case fails. The two take about 10 s.
 `tests/run.sh DIR` tests the programs in `DIR` instead of the source
 directory.
 
@@ -63,16 +64,28 @@ Its merges leave unused blocks, so the second, with allMis1 renamed amafMis1,
 exercises the `maf` filter: the old filter keeps 9 of the 13 amafMis1 rows and
 writes 23 blocks instead of 24.
 
-**`roast skipdash default|empty|on`**, **`multiz skipdash header`** and
-**`multiz skipdash rejects VALUE`**: the experimental, opt-in
+**`roast skipdash default|empty|zero|on`**, **`multiz skipdash header`** and
+**`multiz skipdash VALUE is off`**: the experimental, opt-in
 `MULTIZ_PREYAMA_SKIP_DASH` option. `data/skipdash` is UCSC's hg38 pairwise
 alignments with taeGut2 and zonAlb1 (from their 100-way inputs), cut to the
 blocks whose hg38 row starts in chr21:16,303,000-16,307,999, where the option
-changes one block. With the variable unset or empty, `roast E=hg38` must give
-`roast-skipdash.default.maf`; with `1`, `roast-skipdash.maf` and a notice on
-stderr. The two files must differ. `multiz` with `1` must write a `#` header
-line saying the option is on, and must refuse any other value (`yes`, `2`,
-`0`) before writing a block. `run.sh` unsets the variable first, so the other
+changes one block. With the variable unset, empty or `0`, `roast E=hg38` must give
+`roast-skipdash.default.maf` (with `0`, and a warning on stderr); with `1`,
+`roast-skipdash.maf` and a notice on stderr. The two files must differ.
+`multiz` with `1` must write a `#` header line saying the option is on; with
+any other value (`yes`, `2`, `0`) it must warn and give the default output.
+Until the 11.10 review those values were fatal, after `multiz` had emptied its
+output files, and `roast` exited 0 with an empty alignment.
+
+**Section 5, failures**: each case fails on 11.9.1. `multiz output errors`
+(writing to `/dev/full`, and an `out1` that cannot be opened, must exit
+non-zero); `roast high byte` (a 0xE9 byte in one row: the sd and se rows must
+survive; it crashed `multiz`, and `roast` hid it); `roast failed child` (a
+`multiz` whose first call fails must stop `roast`); `maf_sort headerless` and
+`maf_sort long name` (a long first `a` line without a header, and a
+213-character name, overran buffers); `roast long T=` (a 300-character
+temporary directory); and `roast refuses a destination with a space` (which
+deleted the user's files `my` and `out.maf`). `run.sh` unsets the variable first, so the other
 cases always test the default.
 
 ## Expected outputs
@@ -86,7 +99,8 @@ git diff --stat tests/expected
 ```
 
 `-g` takes the same optional directory, so expected outputs can come from
-another build.
+another build. It writes nothing unless every case it generates from ran
+cleanly, so a failed run can never become the expected output.
 
 ## Inputs
 
@@ -104,12 +118,15 @@ UCSC's files, not generated, and `regen.sh` leaves it alone.
 `tests/yama_fuzz/check.sh` builds yama twice from the tree, as a scalar reference (`-DYAMA_SIMD=0`) and as the
 normal build that picks the AVX2 kernels at run time, and requires identical output on random cases from
 `gen.py`. It covers plain cases, gap opens of 2^28 that push row coefficients past 32 bits (the scalar fallback),
-one range check at a time (`YAMA_FUZZ_GOP_IDX`), and the run-time override `YAMA_SIMD=0`. It also tests the
+one range check at a time (`YAMA_FUZZ_GOP_IDX`), substitution scores scaled by 2^23 (`YAMA_FUZZ_SS`, the only
+cases that reach the per-row score-sum check), and the run-time override `YAMA_SIMD=0`, also seen from inside a
+shadow build (no row may reach AVX2). Both drivers must exit 0, and only stdout is compared, so a crash in both
+builds fails. It also tests the
 value-bound check that sends a call to the scalar path when its scores could leave the range the AVX2 I scan is
 proved for: with `-DYAMA_SHADOW` builds it checks that the check never fires at the shipped limits, and that it
 fires, with unchanged output, when each limit is lowered to 0 (`-DYAMA_VBOUND=0`, `YAMA_ZBOUND`, `YAMA_EBOUND`).
-It takes a few seconds and needs python3 (it reports SKIP without it). On a CPU without AVX2 both builds run scalar, and it
-says so. `tests/yama_fuzz/run.sh` compares two trees instead (e.g. against a release).
+It takes a few seconds and needs python3 (it reports SKIP without it). `make check` builds it with make's `CC` and
+`CFLAGS`. On a CPU without AVX2, or with `YAMA_SIMD=0` set, both builds run scalar, and it says so. `tests/yama_fuzz/run.sh` compares two trees instead (e.g. against a release).
 
 ## CPUs without AVX2
 
