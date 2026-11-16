@@ -5,7 +5,7 @@
 #include "speciesTree.h"
 #include "mz_scores.h"
 
-#define VERSION 8
+#define VERSION 9
 
 // macro to convince gnu c compiler not to complain about unusued function
 // arguments

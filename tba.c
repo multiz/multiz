@@ -2,7 +2,7 @@
 // tba.c -- execute commands to run multiz and satellite programs, creating a
 // threaded-block alignment
 
-#define VERSION 19
+#define VERSION 20
 
 // arg '-' means no execute, '+' means verbose
 

@@ -42,7 +42,7 @@
 
 #include <limits.h>
 
-#define VERSION 8
+#define VERSION 9
 
 #define COL_WIDTH 50
 
