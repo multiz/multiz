@@ -74,6 +74,7 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
             native_grep_v_append("eof", fn_in, NULL, fn_out);
         } else
             native_grep_v_append("eof", _right_maf, NULL, fn_out);
+        force = 0;   // force excuses this one copy; left set, it hid every later child's failure
         native_rm2(_right_maf, _left_maf);
         return 0;
     }
@@ -84,6 +85,7 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
             native_grep_v_append("eof", fn_in, NULL, fn_out);
         } else
             native_grep_v_append("eof", _left_maf, NULL, fn_out);
+        force = 0;
         native_rm2(_left_maf, _right_maf);
         return 0;
     }
@@ -118,6 +120,7 @@ int mz_merge(TreeNodePtr x, TreeNodePtr y, int id, arg_dont_complain(int nbz), a
         if ( n1->next == NULL && n2->next == NULL ) {
             force = 1;
             native_grep_v_append("eof", _MZ_U1, _MZ_U2, fn_out);
+            force = 0;
             return 0;
         }
     } else {

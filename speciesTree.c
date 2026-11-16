@@ -131,6 +131,17 @@ static void native_show(const char *cmd) {
     }
 }
 
+/* close an output the grep steps wrote; any write, flush or close error is fatal, even
+*  under force (see native_grep_v_append) */
+static void write_done(FILE *o, const char *out) {
+    int bad = ferror(o) != 0;
+
+    if (fclose(o) != 0)
+        bad = 1;
+    if (bad)
+        fatalf("error writing %s: %s", out, errno ? strerror(errno) : "write failed");
+}
+
 // copy every byte of from to the end of an open stream; returns 0 if from cannot be read
 static int append_file(const char *from, FILE *to) {
     FILE *in = fopen(from, "r");
@@ -212,6 +223,10 @@ void native_cp(const char *from, const char *to) {
 *  grep did: a newline is added to a last line that lacks one, the step counts as failed
 *  when no line is copied or a file cannot be read, and an unreadable file is reported
 *  as "grep: FILE: reason".
+*  A failure to WRITE the output (it cannot be opened, a write or the close fails, as on
+*  a full disk) is fatal whatever force says: force excuses only an empty selection or an
+*  unreadable input, the cases grep reports with exit 1 or 2. Under force a full disk used
+*  to leave a truncated alignment, roast went on to append "##eof maf", and exited 0.
 */
 void native_grep_v_append(const char *pat, const char *in1, const char *in2, const char *out) {
     char cmd[4 * NAMESIZE_ST + 32];
@@ -230,10 +245,8 @@ void native_grep_v_append(const char *pat, const char *in1, const char *in2, con
     native_show(cmd);
     if (!execute)
         return;
-    if ((o = fopen(out, "a")) == NULL) {    // the shell's >> failed: grep never ran
-        native_note(cmd, 0);
-        return;
-    }
+    if ((o = fopen(out, "a")) == NULL)      // the shell's >> failed: grep never ran
+        fatalf("cannot open %s for writing: %s", out, strerror(errno));
     obuf = ckalloc(1 << 20);
     setvbuf(o, obuf, _IOFBF, 1 << 20);
     ibuf = ckalloc(1 << 20);
@@ -257,8 +270,7 @@ void native_grep_v_append(const char *pat, const char *in1, const char *in2, con
         fclose(in);
     }
     free(line);
-    if (fclose(o) != 0)
-        err = 1;
+    write_done(o, out);
     free(obuf);
     free(ibuf);
     native_note(cmd, !err && selected);
@@ -422,8 +434,8 @@ static int ns_grep_v(const char *pat, char **in, int nin, const char *out, int a
     ssize_t len;
     int k, selected = 0, err = 0;
 
-    if ((o = fopen(out, append ? "a" : "w")) == NULL)
-        return 0;
+    if ((o = fopen(out, append ? "a" : "w")) == NULL)   // fatal whatever force says (native_grep_v_append)
+        fatalf("cannot open %s for writing: %s", out, strerror(errno));
     obuf = ckalloc(1 << 20);
     ibuf = ckalloc(1 << 20);
     setvbuf(o, obuf, _IOFBF, 1 << 20);
@@ -445,8 +457,7 @@ static int ns_grep_v(const char *pat, char **in, int nin, const char *out, int a
         fclose(f);
     }
     free(line);
-    if (fclose(o) != 0)
-        err = 1;
+    write_done(o, out);
     free(obuf);
     free(ibuf);
     return !err && selected;

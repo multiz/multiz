@@ -248,7 +248,6 @@ static int tba_merge(TreeNodePtr x, TreeNodePtr y, int id, int nbz, char **bz_fi
                         do_cmd("grep -v eof %s >> %s", _tba_REF, _left_maf);
                     else if ( strcmp(REF, n2->name)==0 && n1->next!=NULL)
                         do_cmd("grep -v eof %s >> %s", _tba_REF, _right_maf);
-                    force = 1;
                 }
                 found_cmd = 1;
             }
