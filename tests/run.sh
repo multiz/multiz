@@ -373,5 +373,44 @@ why=
 [ "$(cat "$d/my")" = keep ] && [ "$(cat "$d/out.maf")" = keep ] || why="$why the user's files were changed"
 result "roast refuses a destination with a space" "$why"
 
+# 6. Found by the 2026-11-16 code-review-and-quality pass; each case crashed, hung or overran a buffer in 11.9.1
+# (and in 11.10 before the fix). None changes the output on valid input.
+
+# an 'a' line of 1000 bytes or more overran a stack buffer in every MAF reader; mafWrite itself writes such
+# lines for a block with ~125 paralog rows
+d=$W/rev.longa
+mkdir -p "$d"
+pad=$(printf '%01100d' 0)
+sed "s/^a score=\(.*\)/a score=\1 note=$pad/" "$D/tba/sa.sb.sing.maf" > "$d/in.maf"
+(maf_sort "$d/in.maf" sa > "$d/out.maf" 2> "$d/err"; echo $? > "$d/rc")
+why=
+ran "$d" || why=" exit $(cat "$d/rc")"
+[ "$(grep -c '^a' "$d/out.maf")" = "$(grep -c '^a' "$D/tba/sa.sb.sing.maf")" ] || why="$why blocks lost"
+result "maf_sort 1100-byte a line" "$why"
+
+# an amplifier= or copy= naming a row the block lacks walked off the list (a crash, not a message)
+d=$W/rev.amplifier
+mkdir -p "$d"
+awk '/^a/ && !done { print $0 " amplifier=5"; done = 1; next } { print }' "$D/tba/sa.sb.sing.maf" > "$d/in.maf"
+(maf_sort "$d/in.maf" sa > "$d/out.maf" 2> "$d/err"; echo $? > "$d/rc")
+why=
+[ "$(cat "$d/rc")" = 1 ] || why=" exit $(cat "$d/rc"), not 1"
+grep -q 'is not in the block' "$d/err" || why="$why no message"
+result "maf_sort amplifier= past the last row" "$why"
+
+# i, e and q lines (UCSC's) are skipped: they leaked memory per line; the output must equal the file without them
+d=$W/rev.ieq
+mkdir -p "$d"
+awk '{ print } /^s sb/ { q = $7; gsub(/[^-]/, "9", q); print "i sb C 0 C 0"; print "e sc 0 10 + 100 I"; print "q sb " q }' \
+	"$D/tba/sa.sb.sing.maf" > "$d/in.maf"
+(maf_sort "$d/in.maf" sa > "$d/out.maf" 2> "$d/err"; echo $? > "$d/rc")
+maf_sort "$D/tba/sa.sb.sing.maf" sa > "$d/want.maf" 2> /dev/null
+why=
+ran "$d" || why=" exit $(cat "$d/rc")"
+grep -q '^i sb' "$d/in.maf" || why="$why no i lines in the input"
+grep -v '^#' "$d/want.maf" > "$d/want.data"
+grep -v '^#' "$d/out.maf" | cmp -s - "$d/want.data" || why="$why output differs"
+result "maf_sort i, e and q lines" "$why"
+
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]
