@@ -454,5 +454,25 @@ why=
 [ "$n" -le 2 ] || why=" $n lines: the sequence was read again and again"
 result "get_standard_headers .nib ends" "$why"
 
+# blastzWrapper ignored lastz's exit status on its reverse and per-sequence paths (the latter pipes through
+# grep, whose status pclose saw), and ended the output with #:eof as if lastz had worked. A fake lastz prints a
+# little lav and exits with $LASTZ_RC; sx has two sequences, sy one (the reverse path) or two (per sequence)
+d=$W/rev.bzw
+mkdir -p "$d/bin"
+printf '#!/bin/sh\nprintf "#:lav\\nd {\\n  \\"lastz %%s %%s\\n}\\n#:eof\\n" "$1" "$2"\nexit ${LASTZ_RC:-0}\n' > "$d/bin/lastz"
+chmod +x "$d/bin/lastz"
+printf '>c1\nACGTACGTAC\n>c2\nGGGGCCCCAA\n' > "$d/sx"
+printf '>d1\nACGTACGTACGT\n' > "$d/sy1"
+printf '>d1\nACGTACGTACGT\n>d2\nTTTTGGGG\n' > "$d/sy2"
+why=
+for y in sy1 sy2; do
+	(cd "$d" && PATH=$d/bin:$PATH blastzWrapper sx $y > ok.$y 2> /dev/null; echo $? > rc.ok.$y)
+	(cd "$d" && LASTZ_RC=3 PATH=$d/bin:$PATH blastzWrapper sx $y > bad.$y 2> /dev/null; echo $? > rc.bad.$y)
+	[ "$(cat "$d/rc.ok.$y")" = 0 ] && grep -q '^#:eof' "$d/ok.$y" || why="$why $y: a working lastz failed"
+	[ "$(cat "$d/rc.bad.$y")" != 0 ] || why="$why $y: exit 0 after lastz failed"
+	! grep -q '^#:eof' "$d/bad.$y" || why="$why $y: #:eof after lastz failed"
+done
+result "blastzWrapper reports a failed lastz" "$why"
+
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]

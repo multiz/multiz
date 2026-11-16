@@ -15,16 +15,22 @@
 #define BZ "lastz"    // we use lastz instead of blastz
 #define VERSION 15
 
-// replace the first argument with the new first_fn
-static char* modify_cmdline(int argc, char** argv, char* first_fn, char* second_fn, char* newcmd) {
+// replace the first argument with the new first_fn; newcmd holds n bytes, and a longer command is an error
+static char* modify_cmdline(int argc, char** argv, char* first_fn, char* second_fn, char* newcmd, size_t n) {
+    size_t len;
     int i;
-    sprintf(newcmd, "%s %s %s", BZ, first_fn, second_fn);
+    cksnprintf(newcmd, n, "%s %s %s", BZ, first_fn, second_fn);
     for (i=3; i<argc; i++) {
-        strcat(newcmd, " ");
-        strcat(newcmd, argv[i]);
+        len = strlen(newcmd);
+        cksnprintf(newcmd + len, n - len, " %s", argv[i]);
     }
     return newcmd;
 }
+
+/* lastz's exit status on the per-contig path, which pipes it through grep: the shell appends a "#:status N"
+*  line (grep keeps it, as it holds no "eof"), so pclose's status, grep's, no longer hides lastz's failure.
+*  -1: no status line arrived. */
+static int bz_status = -1;
 
 // switch the first and second sequence
 void replace_reverse_bz(FILE* fpr, FILE* fpw, char* replace_str, int contig, int rev) {
@@ -74,19 +80,21 @@ void replace_reverse_bz(FILE* fpr, FILE* fpw, char* replace_str, int contig, int
                 ckfgets(buf, 1000, fpr, "lav input");
             }
             fprintf(fpw, "%s", buf);
-        } else if ( strncmp(buf, "#:eof", 5) != 0)
+        } else if ( strncmp(buf, "#:status ", 9) == 0)
+            bz_status = atoi(buf + 9);
+        else if ( strncmp(buf, "#:eof", 5) != 0)
             fprintf(fpw, "%s", buf);
     }
 }
 
 int main(int argc, char** argv) {
-    char cmdline[500], seq_file1[500], seq_file2[500];
+    char name[64], cmdline[8192], inner[8192], seq_file1[500], seq_file2[500];
     int c1, c2, reverse=0, tmp, fd, contig=1;
     SEQ* sf;
     FILE* pf, *fpw;
 
-    sprintf(cmdline, "blastzWrapper.v%d", VERSION);
-    argv0 = cmdline;
+    sprintf(name, "blastzWrapper.v%d", VERSION);
+    argv0 = name;   // its own buffer: argv0 was cmdline, which then held each lastz command
 
     if ( argc < 3 )
         fatal(" -- wrapper of blastz, passing all arguments to blastz.\nargs: seqfile1 seqfile2 [options]");
@@ -102,23 +110,25 @@ int main(int argc, char** argv) {
 
     if ( c1 > c2) {
         reverse = 1;
-        strcpy(seq_file1, argv[2]);
-        strcpy(seq_file2, argv[1]);
+        cksnprintf(seq_file1, sizeof seq_file1, "%s", argv[2]);
+        cksnprintf(seq_file2, sizeof seq_file2, "%s", argv[1]);
         tmp = c1;
         c1 = c2;
         c2 = tmp;
     } else {
-        strcpy(seq_file1, argv[1]);
-        strcpy(seq_file2, argv[2]);
+        cksnprintf(seq_file1, sizeof seq_file1, "%s", argv[1]);
+        cksnprintf(seq_file2, sizeof seq_file2, "%s", argv[2]);
     }
 
     if (c1 == 1) {
-        modify_cmdline(argc, argv, seq_file1, seq_file2, cmdline);
+        modify_cmdline(argc, argv, seq_file1, seq_file2, cmdline, sizeof cmdline);
         if (reverse == 0)
             return system(cmdline) == 0 ? 0 : 1;   // lastz's failure is blastzWrapper's
-        pf = popen(cmdline, "r");
+        if ((pf = popen(cmdline, "r")) == NULL)
+            fatalf("cannot run '%s'", cmdline);
         replace_reverse_bz(pf, stdout, seq_file1, contig, 1);
-        pclose(pf);
+        if (pclose(pf) != 0)    // lastz's own status; ignored, it ended the output with "#:eof" as if it had worked
+            fatalf("command '%s' failed", cmdline);
     } else {
         sf = seq_open(seq_file1);
         while ( seq_read(sf)) {
@@ -128,14 +138,17 @@ int main(int argc, char** argv) {
             fseek(fpw, 0, SEEK_SET);
             fd = fileno(fpw);
             dup2(fd, 0);
-            modify_cmdline(argc, argv, "/dev/stdin", seq_file2, cmdline);
-            strcat(cmdline, " | grep -v eof");
-            pf = popen(cmdline, "r");
+            modify_cmdline(argc, argv, "/dev/stdin", seq_file2, inner, sizeof inner);
+            cksnprintf(cmdline, sizeof cmdline, "{ %s; echo \"#:status $?\"; } | grep -v eof", inner);
+            if ((pf = popen(cmdline, "r")) == NULL)
+                fatalf("cannot run '%s'", cmdline);
+            bz_status = -1;
             if ( reverse == 1)
                 replace_reverse_bz(pf, stdout, seq_file1, contig, 1);
             else
                 replace_reverse_bz(pf, stdout, seq_file1, contig, 0);
-            pclose(pf);
+            if (pclose(pf) != 0 || bz_status != 0)
+                fatalf("command '%s' failed on sequence %d of %s", inner, contig, seq_file1);
             fclose(fpw);
             contig++;
         }
