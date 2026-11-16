@@ -444,5 +444,15 @@ why=
 [ "$(cat "$d/rc")" = 0 ] || why=" exit $(cat "$d/rc")"
 result "single_cov2 every block trimmed away" "$why"
 
+# a .nib file (one sequence, ACGTACGT) never reached its end: every read loop read it again forever. head stops
+# a looping program by SIGPIPE, so the case cannot hang the suite
+d=$W/rev.nib
+mkdir -p "$d"
+printf '\072\075\351\153\010\000\000\000\041\060\041\060' > "$d/x.nib"
+n=$(get_standard_headers "$d/x.nib" 2> /dev/null | head -c 100000 | wc -l)
+why=
+[ "$n" -le 2 ] || why=" $n lines: the sequence was read again and again"
+result "get_standard_headers .nib ends" "$why"
+
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]
