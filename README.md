@@ -34,8 +34,9 @@ That is the whole build — no configure step, no external libraries. It produce
 18 executables in the source directory, and works with current compilers
 (gcc 15, whose default is C23).
 
-`make check` then runs the regression tests in a second or so; see
-[tests/README.md](tests/README.md).
+`make check` then runs the regression tests and the `yama` fuzz test in about
+10 s; it needs `python3`, and builds the fuzz drivers with the same `CC` and
+`CFLAGS` as the programs. See [tests/README.md](tests/README.md).
 
 The Makefile hardcodes `CC = gcc` (`Makefile:1`), so on a system without `gcc`
 override it: `make CC=cc`. `make install` additionally needs `install` and
@@ -54,6 +55,20 @@ for you — run `make` first, as above. `INSTALLDIR` defaults to
 The Makefile compiles at `-O2` with `-Wall -Wextra`. Until 11.3 it used
 `-O0`, which made a roast run about twice as slow. For a debug build, override
 it: `make CFLAGS="-Wall -Wextra -O0 -ggdb3"`.
+
+### Environment variables
+
+- **`YAMA_SIMD=0`** makes `multiz`, `tba` and `multic` use the scalar `yama`
+  even on a CPU with AVX2. The output is the same either way; it is for testing
+  and as an escape hatch. Building with `CFLAGS="... -DYAMA_SIMD=0"` leaves the
+  AVX2 code out entirely (it is left out anyway on other architectures).
+- **`MULTIZ_PREYAMA_SKIP_DASH=1`** turns on an experimental band setup in
+  `pre_yama` that skips reference-only columns of the second alignment. It
+  **changes the output**, says so on stderr and in the output's header, and may
+  be removed. Unset, empty or any other value means off; a value other than 1
+  draws a warning.
+- **`TMPDIR`** is where `roast` and `tba` put their temporary files when `T=` is
+  not given (default `/tmp`).
 
 ## Dependencies
 
@@ -121,6 +136,56 @@ by **Minmei Hou**, multiz's maintainer in the Miller Lab, which she sent to UCSC
 in January 2014. Its source was never published; it was reconstructed from
 UCSC's binaries, confirmed by UCSC, and is included here from 11.3 on — see
 [`multiz`](docs/programs.md#multiz).
+
+### Changes in 11.10
+
+- **AVX2 for `yama`, about 1.5 to 1.9 times faster.** The row recurrence is
+  split into two passes, and on x86-64 CPUs with AVX2 the band interior of
+  both is computed eight cells at a time; the CPU is checked at run time, so
+  the default build still runs anywhere. A row whose coefficients do not fit
+  in 32 bits, and any call outside the range the proof covers (checked once
+  per call, in O(1)), is done by the scalar code. `YAMA_SIMD=0` forces the
+  scalar path (see [Environment variables](#environment-variables)).
+- **`MULTIZ_PREYAMA_SKIP_DASH=1`**, an experimental opt-in band setup that
+  changes the output. It is off by default.
+- **Failures are failures.** Each of these exited 0 before, most with a partial
+  alignment:
+  - `roast` ignored a failed `multiz` (a crash, a missing program, an OOM kill,
+    or `C=`, which `multiz` rejects) after its first merge with the reference,
+    and still ended the output with `##eof maf`.
+  - On a full disk, `roast` and `tba` cut the alignment short, appended
+    `##eof maf` and exited 0. `multiz` and `multic` never checked their
+    writes, and an `out1`/`out2` that could not be opened silently dropped
+    the unused blocks.
+  - A sequence byte of 0x80 or above crashed `multiz`, and under `roast` the
+    crash was hidden. It now scores as `N` does.
+  - A headerless MAF file with a long first `a` line overran a heap buffer
+    (`maf_sort`, `single_cov2`, `maf_project` and others); names of more than
+    200 characters overran stack buffers in `mafWrite`, `multiz`, `multic`,
+    `maf_project` and `get_covered`; a `$TMPDIR` or `T=` of about 177
+    characters or more overran `roast`'s and `tba`'s buffers.
+  - A `roast` destination such as `my out.maf` deleted the files `my` and
+    `out.maf`, because paths reached `/bin/sh` unquoted. `roast` and `tba` now
+    refuse, before doing anything, a destination, temporary directory or
+    `E=` containing white space or a character the shell would interpret.
+- **Tests.** `make check` adds a `yama` fuzz test (random, targeted and real
+  cases, AVX2 against scalar, with shadow builds that check the value-bound
+  fallback and the `YAMA_SIMD=0` override) and a regression case for each
+  failure above; each fails on 11.9.1. A crash in both fuzz builds now fails
+  the test, the fuzz drivers are built with make's `CC`, and CI runs
+  `make CC=clang check` as well as gcc. `tests/run.sh -g` no longer writes
+  expected output from a failed run.
+
+Output on valid input is unchanged: `make check` (gcc and clang), the deep
+merge, a 216-genome cannabis piece and two hg38 100-way pieces match 11.9.1
+byte for byte. On laila (Xeon Gold 6330), wall time against 11.9.1 fell from
+15.2 s to 9.8 s on the deep merge, 87 s to 52 s on the cannabis piece, 1070 s
+to 648 s and 991 s to 564 s on the two hg38 pieces, and 1942 s to 1014 s on a
+median-weight 216-genome piece.
+
+Program versions: only `multiz` moves, to 11.10. `tba` and `multic` link the
+same `yama`, and the other programs carry the fixes above under their 11.9
+versions.
 
 ### Changes in 11.9.1
 
