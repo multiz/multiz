@@ -119,7 +119,7 @@ struct mafIndex *mafIndexBuild(char *fileName, int verbose) {
     return ix;
 }
 
-int mafIndexChr(struct mafIndex *ix, char *name) {
+int mafIndexChr(struct mafIndex *ix, const char *name) {
     int c;
 
     for (c = 0; c < ix->nchr; c++)

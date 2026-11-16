@@ -1,4 +1,6 @@
 #include <stdarg.h>
+#include <errno.h>
+#include <string.h>
 #include "util.h"
 
 char *argv0;
@@ -53,6 +55,22 @@ FILE *ckopen(const char *name, const char *mode) {
     if ((fp = fopen(name, mode)) == NULL)
         fatalf("Cannot open %s.", name);
     return fp;
+}
+
+/* ckclose ------------ flush and close an output stream; die if any write failed
+*  A full disk or a closed descriptor sets the stream's error flag and is otherwise
+*  silent, so a program that never looks exits 0 with a truncated file. stdout is
+*  flushed and checked but not closed, so it is never closed twice. */
+void ckclose(FILE *fp, const char *what) {
+    int bad;
+
+    if (fp == NULL)
+        return;
+    bad = fflush(fp) != 0 || ferror(fp);
+    if (fp != stdout && fclose(fp) != 0)
+        bad = 1;
+    if (bad)
+        fatalf("error writing %s: %s", what, errno ? strerror(errno) : "write failed");
 }
 
 void *ckalloc(size_t amount) {

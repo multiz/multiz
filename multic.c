@@ -260,7 +260,8 @@ static void print_unused_ali_multic(struct aliNode* aliN, FILE* fpw) {
 // parses arguments
 // args: [s=?] [R=?] [M=?] file1 file2 v [out1 out2] [nohead]
 int main(int argc, char** argv) {
-    char USAGE[10000], args[2000], cmd[200], ref_chr[200], x;
+    char USAGE[10000], *args, cmd[200], *ref_chr, x;
+    size_t args_len;
     struct mafFile* maf;
     struct mafAli *ali, *cp_list1, *cp_list2, *wk_list1, *wk_list2;
     struct aliNode *A, *B, *aliN, *nextN;
@@ -281,6 +282,11 @@ int main(int argc, char** argv) {
     if ( argc < 2 )
         fatalf("%s\n", USAGE);
 
+    // the command line for the header, sized from the arguments (a fixed 2,000 bytes overflowed on long paths)
+    args_len = strlen(cmd) + 2;
+    for (i=1; i<argc; i++)
+        args_len += strlen(argv[i]) + 1;
+    args = ckalloc(args_len);
     strcpy(args, cmd);
     strcat(args, " ");
     for (i=1; i<argc; i++) {
@@ -330,15 +336,16 @@ int main(int argc, char** argv) {
     if ( argc != 4 && argc != 6)
         fatalf(" -- aligning two files of alignment blocks where top rows are always the reference, reference in both files can contain duplicats\n%s", USAGE);
 
-    if ( argc == 6 ) {
-        fpw[0] = fopen(argv[4], "w");
-        fpw[1] = fopen(argv[5], "w");
-    } else
-        fpw[0] = fpw[1] = stdout;
-
     v = atoi(argv[3]);
     if ( v != 0 && v != 1)
         fatal("v can only be value of 0 or 1");
+
+    if ( argc == 6 ) {
+        // ckopen: an unopenable out1/out2 used to leave a NULL stream that silently dropped the unused blocks
+        fpw[0] = ckopen(argv[4], "w");
+        fpw[1] = ckopen(argv[5], "w");
+    } else
+        fpw[0] = fpw[1] = stdout;
 
     // ---- end of processing args ------
 
@@ -359,7 +366,7 @@ int main(int argc, char** argv) {
 
     while ( cp_list1 != NULL && cp_list2 != NULL ) {
         wk_list1 = wk_list2 = NULL;
-        strcpy(ref_chr, cp_list1->components->src);
+        ref_chr = copy_string(cp_list1->components->src);   // any length (a fixed 200 bytes overflowed)
 
         seperate_cp_wk(&cp_list1, &wk_list1, ref_chr);
         seperate_cp_wk(&cp_list2, &wk_list2, ref_chr);
@@ -384,6 +391,7 @@ int main(int argc, char** argv) {
                 free(aliN);
                 aliN = nextN;
             }
+        free(ref_chr);
     }
 
     if ( cp_list1 != NULL && fpw[0] != NULL)
@@ -396,10 +404,15 @@ int main(int argc, char** argv) {
             if ( row2==0 || ali->components->next != NULL )
                 mafWrite(fpw[1], ali);
 
-    for (i=0; i<2; i++)
-        if (fpw[i] != NULL )
-            fclose(fpw[i]);
-
-    mafWriteEnd(stdout);
+    /* Every output is checked: a failed write used to exit 0. In the 3-argument form out1 and out2 ARE stdout,
+    *  which was closed twice before "##eof maf" went to the closed stream, so that form has never written the
+    *  trailer. It still does not: adding it changes the output, and is left for 11.11. */
+    if ( argc == 6 ) {
+        ckclose(fpw[0], argv[4]);
+        ckclose(fpw[1], argv[5]);
+        mafWriteEnd(stdout);
+    }
+    ckclose(stdout, "stdout");
+    free(args);
     return 0;
 }

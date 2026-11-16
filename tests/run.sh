@@ -2,7 +2,8 @@
 # Regression tests: tests/run.sh [-g] [bindir]
 # Runs the programs in bindir (default: the source directory) on the inputs
 # in tests/data and compares the output, '#' lines aside, with
-# tests/expected. -g writes tests/expected instead of comparing.
+# tests/expected. -g writes tests/expected instead of comparing, and only
+# when every case it generates from ran cleanly; otherwise it changes nothing.
 # Prints one PASS or FAIL line per case and a tally; exits 1 on any FAIL.
 
 T=$(cd "$(dirname "$0")" && pwd)
@@ -35,10 +36,11 @@ result() {
 	fi
 }
 
-# same GOT EXPECTED: equal once '#' lines are dropped; -g copies GOT
+# same GOT EXPECTED: equal once '#' lines are dropped; -g stages GOT as EXPECTED.gen, which is moved into
+# place only if the whole -g run passes (a failed run must not become the expected output)
 same() {
 	if [ $gen = 1 ]; then
-		grep -v '^#' "$1" > "$2"
+		grep -v '^#' "$1" > "$2.gen"
 		return 0
 	fi
 	grep -v '^#' "$1" > "$W/got"
@@ -113,15 +115,18 @@ result "tba" "$why"
 
 # 2b. MULTIZ_PREYAMA_SKIP_DASH, the experimental opt-in pre_yama option: roast E=hg38 on data/skipdash, an
 # excerpt of UCSC's hg38 alignments with taeGut2 and zonAlb1 in which the option changes one block. Unset and
-# empty give the default output, 1 the option's; the two expected files must differ.
+# empty give the default output, 1 the option's; the two expected files must differ. Any other value (0 here)
+# is off: the default output, with a warning on stderr (before 11.10's review it was fatal, and roast exited 0
+# with an empty alignment).
 STREE="(hg38 (zonAlb1 taeGut2))"
-for m in default empty on; do
+for m in default empty zero on; do
 	d=$W/skipdash.$m
 	mkdir -p "$d/tmp"
 	cp "$D"/skipdash/*.sing.maf "$d"
 	(
 		cd "$d" || exit
 		case $m in empty) MULTIZ_PREYAMA_SKIP_DASH=; export MULTIZ_PREYAMA_SKIP_DASH ;;
+		zero) MULTIZ_PREYAMA_SKIP_DASH=0; export MULTIZ_PREYAMA_SKIP_DASH ;;
 		on) MULTIZ_PREYAMA_SKIP_DASH=1; export MULTIZ_PREYAMA_SKIP_DASH ;; esac
 		roast T="$d/tmp" E=hg38 "$STREE" hg38.*.sing.maf out.maf > /dev/null 2> err; echo $? > rc
 	)
@@ -133,16 +138,29 @@ for m in default empty on; do
 	if [ $m = on ]; then
 		grep -q 'MULTIZ_PREYAMA_SKIP_DASH=1' "$d/err" || why="$why no stderr notice"
 		[ $gen = 1 ] || ! cmp -s "$E/roast-skipdash.default.maf" "$E/roast-skipdash.maf" || why="$why the option changed nothing"
+	elif [ $m = zero ]; then
+		grep -q 'MULTIZ_PREYAMA_SKIP_DASH="0" is not 1' "$d/err" || why="$why no warning"
+		! grep -q 'MULTIZ_PREYAMA_SKIP_DASH=1' "$d/err" || why="$why option notice for 0"
 	else
 		! grep -q 'MULTIZ_PREYAMA_SKIP_DASH' "$d/err" || why="$why notice without the option"
 	fi
 	result "roast skipdash $m" "$why"
 done
 
-[ $gen = 1 ] && { echo "wrote $E"; exit 0; }
+if [ $gen = 1 ]; then
+	if [ $fail != 0 ]; then
+		rm -f "$E"/*.gen
+		echo "$fail case(s) failed; $E left unchanged"
+		exit 1
+	fi
+	for f in "$E"/*.gen; do mv "$f" "${f%.gen}"; done
+	echo "wrote $E"
+	exit 0
+fi
 
 # 2c. MULTIZ_PREYAMA_SKIP_DASH in multiz itself: with 1, a '#' line in the header says the option is on (the
-# default output has none); any value other than unset, empty or 1 is refused before any output.
+# default output has none); any value other than unset, empty or 1 is off: exit 0, the default output, and a
+# warning on stderr.
 d=$W/skipdash.multiz
 (MULTIZ_PREYAMA_SKIP_DASH=1; export MULTIZ_PREYAMA_SKIP_DASH; multiz_run "$d" "$D/synth/k2l2s1.1.maf" "$D/synth/k2l2s1.2.maf")
 why=
@@ -154,10 +172,13 @@ for bad in yes 2 0; do
 	d=$W/skipdash.bad$bad
 	(MULTIZ_PREYAMA_SKIP_DASH=$bad; export MULTIZ_PREYAMA_SKIP_DASH; multiz_run "$d" "$D/synth/k2l2s1.1.maf" "$D/synth/k2l2s1.2.maf")
 	why=
-	[ "$(cat "$d/rc")" != 0 ] || why=" exit 0"
-	grep -q 'MULTIZ_PREYAMA_SKIP_DASH must be unset, empty or 1' "$d/err" || why="$why no error message"
-	! grep -q '^a' "$d/out.maf" || why="$why wrote blocks"
-	result "multiz skipdash rejects $bad" "$why"
+	ran "$d" || why=" exit $(cat "$d/rc")"
+	grep -q "MULTIZ_PREYAMA_SKIP_DASH=\"$bad\" is not 1" "$d/err" || why="$why no warning"
+	for f in out U1 U2; do
+		grep -v '^#' "$d/$f.maf" > "$W/got"
+		grep -v '^#' "$W/k2l2s1.fwd/$f.maf" | cmp -s "$W/got" - || why="$why $f.maf differs from the default"
+	done
+	result "multiz skipdash $bad is off" "$why"
 done
 
 # 3. Shift invariance: every coordinate moved past 2^31 and 2^32 must give
