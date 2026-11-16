@@ -168,7 +168,10 @@ int main(int argc, char **argv) {
     if (argc < 5)
         fatalf("roast -- reference guided multiple alignment.\n%s", USAGE);
 
-    strcpy(DESTINATION, argv[argc-1]);
+    check_shell_word("the destination", argv[argc-1]);
+    cksnprintf(DESTINATION, sizeof DESTINATION, "%s", argv[argc-1]);
+    for (i = 1; i < argc; ++i)   // every argument is echoed into the output's header
+        check_shell_text("an argument", argv[i]);
 
 
 
@@ -298,6 +301,9 @@ int main(int argc, char **argv) {
     pid = getpid();
     PREFIX = (char*)malloc(NAMESIZE*sizeof(char));
     check_tmp_dir(tmpDir);
+    check_shell_word("the temporary directory (T= or $TMPDIR)", tmpDir);
+    if (REF != NULL)
+        check_shell_word("the reference (E=)", REF);
     cksnprintf(PREFIX, NAMESIZE, "%s/_%s_%d_", tmpDir, OPERAT, pid);
     cksnprintf(_MZ_U1, sizeof _MZ_U1, "%sU1", PREFIX);
     cksnprintf(_MZ_U2, sizeof _MZ_U2, "%sU2", PREFIX);

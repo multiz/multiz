@@ -4,6 +4,14 @@
 
 void do_cmd(const char *fmt, ...);
 
+/* roast and tba build shell-style commands from user paths, and do_cmd hands any it
+*  cannot run natively to /bin/sh unquoted. These refuse, up front, what the shell would
+*  split or interpret, so a user path never reaches /bin/sh as more than one plain word.
+*  check_shell_word: a path or name (no white space, quotes, $ ` \ globs, | ; & < > ( ) { } ~,
+*  nor a leading -). check_shell_text: text echoed into the header (no " $ ` \ or newline). */
+void check_shell_word(const char *what, const char *s);
+void check_shell_text(const char *what, const char *s);
+
 /* The file steps roast and tba run between merges, done natively instead of through
 *  system(). Each prints the command it stands for when verbose is set, does nothing
 *  when execute is 0, and on failure stops only if force is 0, exactly as do_cmd does

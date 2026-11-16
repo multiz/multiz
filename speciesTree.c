@@ -58,6 +58,23 @@ void do_cmd(const char *fmt, ...) {
 }
 
 
+/* ------------- what may reach a command line (see speciesTree.h) ------------- */
+
+/* Before these, a roast destination of "my out.maf" ran "rm -f my out.maf" and deleted the user's files my and
+*  out.maf; a T= with a space overwrote a file named by its first word; and a T= with ~ sent the steps to the
+*  shell's grep, which dropped every data row containing "eof" (a species named geof lost its rows). (11.10 code
+*  review, finding 10) */
+void check_shell_word(const char *what, const char *s) {
+    if (*s == '\0' || *s == '-' || strpbrk(s, " \t\n\r\"'\\$`*?[]|;&<>(){}~") != NULL)
+        fatalf("%s must be one plain word, without white space, quotes or any of $ ` \\ * ? [ ] | ; & < > ( ) { } ~, "
+               "and must not start with '-': \"%s\"", what, s);
+}
+
+void check_shell_text(const char *what, const char *s) {
+    if (strpbrk(s, "\"$`\\\n\r") != NULL)
+        fatalf("%s must not contain \", $, `, \\ or a line break: %s", what, s);
+}
+
 /* ------------- native versions of the shell file steps (see speciesTree.h) ------------- */
 
 static void native_note(const char *cmd, int ok);

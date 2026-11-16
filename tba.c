@@ -306,7 +306,10 @@ int main(int argc, char **argv) {
     if (argc < 4)
         fatalf("TBA -- threaded block alignment.\n%s", USAGE);
 
-    strcpy(DESTINATION, argv[argc-1]);
+    check_shell_word("the destination", argv[argc-1]);
+    cksnprintf(DESTINATION, sizeof DESTINATION, "%s", argv[argc-1]);
+    for (i = 1; i < argc; ++i)   // every argument is echoed into the output's header
+        check_shell_text("an argument", argv[i]);
 
     pid = getpid();
     OPERAT = copy_string("tba");
@@ -409,6 +412,9 @@ int main(int argc, char **argv) {
     //----------------< end of processing arguments >-----------
     PREFIX = (char*)malloc(NAMESIZE*sizeof(char));
     check_tmp_dir(tmpDir);
+    check_shell_word("the temporary directory (T= or $TMPDIR)", tmpDir);
+    if (REF != NULL)
+        check_shell_word("the reference (E=)", REF);
     cksnprintf(PREFIX, NAMESIZE, "%s/_%s_%d_", tmpDir, OPERAT, pid);
     cksnprintf(_tba_A, sizeof _tba_A, "%sA", PREFIX);
     cksnprintf(_tba_B, sizeof _tba_B, "%sB", PREFIX);
