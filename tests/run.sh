@@ -526,5 +526,35 @@ done
 [ "$(cat "$d/-x.maf")" = keep ] || why="$why -x.maf changed"
 result "roast refuses unsafe T=, E=, destination and arguments" "$why"
 
+# multi-contig FASTAs with >species.contig headers: parseHeader fell back to using the filename as both
+# species and contig, emitting every contig as an unaligned single-row block under the bare species name
+# and crashing multiz/get_covered with "Bad coordinates" when a later contig was shorter than an earlier one.
+# Also verify pair2tb emits every contig (not just the first) when a pairwise MAF has zero alignments.
+d=$W/rev.multicontig
+mkdir -p "$d/tmp"
+seq1=$(awk 'BEGIN { for (i = 0; i < 40; i++) printf "ACGTACGTAA" }')
+seq2=$(awk 'BEGIN { for (i = 0; i < 5; i++) printf "GCTAGCTAGG" }')
+for sp in spA spB spC spD; do
+	printf '>%s.ctg1\n%s\n>%s.ctg2\n%s\n' "$sp" "$seq1" "$sp" "$seq2" > "$d/$sp"
+done
+for pair in "spA spB" "spA spC" "spA spD" "spB spC" "spB spD" "spC spD"; do
+	set -- $pair
+	printf '##maf version=1\na score=1000.0\ns %s.ctg1 10 80 + 400 %s\ns %s.ctg1 10 80 + 400 %s\n\na score=500.0\ns %s.ctg2 5 30 + 50 %s\ns %s.ctg2 5 30 + 50 %s\n\n' \
+		"$1" "$(printf '%s' "$seq1" | cut -c11-90)" "$2" "$(printf '%s' "$seq1" | cut -c11-90)" \
+		"$1" "$(printf '%s' "$seq2" | cut -c6-35)" "$2" "$(printf '%s' "$seq2" | cut -c6-35)" \
+		> "$d/$1.$2.sing.maf"
+done
+(cd "$d" && tba + T="$d/tmp" "(spA (spB (spC spD)))" sp*.sing.maf out.maf > /dev/null 2> err; echo $? > rc)
+why=
+ran "$d" || why=" exit $(cat "$d/rc"): $(head -n 2 "$d/err" | tr '\n' ' ')"
+grep -q '^s spA\.ctg1 ' "$d/out.maf" || why="$why missing spA.ctg1"
+grep -q '^s spA\.ctg2 ' "$d/out.maf" || why="$why missing spA.ctg2"
+! grep -qE '^s sp[ABCD] ' "$d/out.maf" || why="$why collapsed bare species row in out.maf"
+printf '##maf version=1\n' > "$d/empty.maf"
+(cd "$d" && pair2tb empty.maf spA spB > empty_out.maf 2> empty_err; echo $? > empty_rc)
+[ "$(cat "$d/empty_rc")" = 0 ] || why="$why pair2tb empty rc=$(cat "$d/empty_rc")"
+grep -q '^s spA\.ctg2 ' "$d/empty_out.maf" || why="$why pair2tb dropped second contig on empty MAF"
+result "tba and pair2tb multi-contig >species.contig FASTAs" "$why"
+
 echo "$pass passed, $fail failed"
 [ $fail = 0 ]
