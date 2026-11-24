@@ -63,7 +63,7 @@ struct mafAli* getMafBetween(struct mafFile* mf, char* seqfile, FILE* fpw) {
             C.text[C.size] = '\0';
             mafWrite(fpw, &X);
             free(C.text);
-            break;
+            continue;
         }
 
         prev = a = cp_list;
@@ -115,8 +115,8 @@ struct mafAli* getMafBetween(struct mafFile* mf, char* seqfile, FILE* fpw) {
 
         A = mafArray(wk_list, &nali);
 
-        C.name = copy_string(name);
-        C.contig = copy_string(src);
+        C.name = name;
+        C.contig = src;
         strcpy(comp_name, name);
         strcat(comp_name, ".");
         strcat(comp_name, src);

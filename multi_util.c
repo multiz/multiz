@@ -317,6 +317,39 @@ static int msa_fields(char* fn, SEQ* sf, char **arr, int i, char* name, char* ch
             return 0;
         }
     }
+    if (sf->header[0] == '>') {
+        const char *tok = sf->header + 1;
+        while (*tok == ' ' || *tok == '\t')
+            tok++;
+        const char *endtok = tok;
+        while (*endtok != '\0' && *endtok != ' ' && *endtok != '\t' && *endtok != '\r' && *endtok != '\n')
+            endtok++;
+        const char *dot = memchr(tok, '.', (size_t)(endtok - tok));
+        if (dot != NULL && dot > tok && dot + 1 < endtok) {
+            const char *base = strrchr(fn, '/');
+            base = base != NULL ? base + 1 : fn;
+            size_t splen = (size_t)(dot - tok);
+            int matches_fn = strncmp(tok, base, splen) == 0 &&
+                (base[splen] == '\0' || strcmp(base + splen, ".fa") == 0 ||
+                 strcmp(base + splen, ".fasta") == 0 || strcmp(base + splen, ".fna") == 0);
+            if (matches_fn) {
+                char *spbuf = ckalloc(splen + 1);
+                char *ctgbuf = ckalloc((size_t)(endtok - (dot + 1)) + 1);
+                memcpy(spbuf, tok, splen);
+                spbuf[splen] = '\0';
+                memcpy(ctgbuf, dot + 1, (size_t)(endtok - (dot + 1)));
+                ctgbuf[endtok - (dot + 1)] = '\0';
+                header_field(name, namesz, spbuf, "sequence name");
+                header_field(chr, namesz, ctgbuf, "sequence name");
+                free(spbuf);
+                free(ctgbuf);
+                *start = 1;
+                *size = *end = (maf_pos_t)strlen((char*)sf->seq);
+                *strand = '+';
+                return 0;
+            }
+        }
+    }
     header_field(name, namesz, fn, "sequence file name");
     header_field(chr, namesz, fn, "sequence file name");
     *start = 1;
